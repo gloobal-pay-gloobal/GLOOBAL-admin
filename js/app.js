@@ -551,6 +551,14 @@
     return card("Controls", rules.length ? `${rules.length} on` : "none on", `${rows ? `<div class="rows">${rows}</div>` : '<p class="muted" style="font-weight:600;margin:6px 0 0">Payments both ways go through as normal.</p>'}${form}<p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">The server checks these on every payment; the send screen shows the limit before anyone types.</p>`);
   }
 
+  // Server errors (0222): every 5xx, by route.
+  function errorsCard(e) {
+    if (!e) return "";
+    const tone = e.lastHour >= 10 ? "bad" : e.lastHour ? "warn" : "good";
+    const rows = e.top.map((r) => `<div class="row"><div class="grow"><div class="name" style="font-family:var(--f-num);font-size:12.5px;white-space:normal;overflow-wrap:anywhere">${esc(r.route)}</div><div class="meta">last ${esc(ago(r.lastAt))} · ${esc(String(r.lastStatus))}</div></div><div class="amt">${INT.format(r.count)}</div></div>`).join("");
+    return card("Server errors", `<span class="pill ${tone}">${INT.format(e.lastHour)} in the last hour</span>`, `${line("Last 24 hours", INT.format(e.lastDay))}${rows ? `<div class="rows" style="margin-top:4px">${rows}</div>` : '<p class="muted" style="font-weight:600;margin:6px 0 0">None — every request answered.</p>'}<p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">Every request the server failed (5xx), by route. 10 or more in an hour alerts Admin and Tech.</p>`);
+  }
+  const alertsLine = (a) => (!a ? "" : line("Alert checks", !a.enabled ? '<span class="muted">turned off</span>' : a.lastRun ? `${esc(ago(a.lastRun))} · every ${a.every} min` : '<span class="muted">not yet since the server woke</span>'));
   function viewSystem() {
     const d = S.sys;
     const refresh = `<button type="button" class="icon-btn" data-sys-refresh aria-label="Refresh">${ICON.refresh}</button>`;
@@ -562,7 +570,8 @@
     return header("Server & deploys", d.cached ? "What is live, against GitHub · a minute ago" : "What is live, against GitHub", refresh) +
       `<div class="grid g2 tgrid"><div>${card("GitHub", "", gh)}${card("Render — the API", behindPill(d.render.behind), `${line("Running", d.render.commit ? `<span class="num">${esc(d.render.commit)}</span>` : '<span class="muted">not reported</span>')}${line("Up for", esc(up(d.render.startedAt)))}${line("Database answers in", d.render.dbPingMs === null ? '<span class="down">no answer</span>' : `${d.render.dbPingMs} ms`)}${line("Memory", `${d.render.memoryMb} MB`)}${line("Node", esc(d.render.node))}${commits(d.render.behind)}${d.render.behind && d.render.behind.count ? '<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Render → Manual Deploy → Deploy latest commit.</p>' : ""}`)}</div><div>` +
       card("Netlify — the app", d.netlify.error ? '<span class="pill quiet">unknown</span>' : behindPill(d.netlify.behind), d.netlify.error ? `<p class="muted" style="font-weight:600">${esc(d.netlify.error)}</p>` : `${line("Running", d.netlify.commit ? `<span class="num">${esc(d.netlify.commit)}</span>` : '<span class="muted">a local build</span>')}${line("Built", d.netlify.builtAt ? esc(ago(d.netlify.builtAt)) : "—")}${commits(d.netlify.behind)}${d.netlify.behind && d.netlify.behind.count ? '<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Netlify → Deploys → Trigger deploy → Deploy site.</p>' : ""}`) +
-      card("Background checks", "", `${line("Books checked", d.checks.booksAt ? `${esc(ago(d.checks.booksAt))} · ${d.checks.booksOk ? '<span class="up">add up</span>' : '<span class="down">off</span>'}` : "never")}${line("Rates fetched", d.checks.ratesAt ? esc(ago(d.checks.ratesAt)) : "never")}`) + `</div></div>`;
+      errorsCard(d.errors) +
+      card("Background checks", "", `${alertsLine(d.alerts)}${line("Books checked", d.checks.booksAt ? `${esc(ago(d.checks.booksAt))} · ${d.checks.booksOk ? '<span class="up">add up</span>' : '<span class="down">off</span>'}` : "never")}${line("Rates fetched", d.checks.ratesAt ? esc(ago(d.checks.ratesAt)) : "never")}${d.alerts && d.alerts.lastRun && Date.now() - new Date(d.alerts.lastRun) > 15 * 60000 ? '<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Alerts have not run for a while: the server was probably asleep. The keep-awake job on GitHub (Actions → Keep the API awake) stops that.</p>' : ""}`) + `</div></div>`;
   }
   function viewGrowth() {
     const d = S.grow;
