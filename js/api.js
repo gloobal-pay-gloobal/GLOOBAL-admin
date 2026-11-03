@@ -56,6 +56,15 @@
     pushKey: () => call("GET", "/api/admin/push/key"),
     pushOn: (sub) => call("POST", "/api/admin/push/subscribe", { body: sub }),
     pushOff: (endpoint) => call("POST", "/api/admin/push/unsubscribe", { body: { endpoint } }),
+    // Countries and Money & books (0219)
+    countries: (period) => call("GET", `/api/admin/countries?period=${encodeURIComponent(period)}&tz=${encodeURIComponent(tz())}`),
+    country: (iso, period) => call("GET", `/api/admin/countries/${encodeURIComponent(iso)}?period=${encodeURIComponent(period)}&tz=${encodeURIComponent(tz())}`),
+    pair: (a, b, period) => call("GET", `/api/admin/pair/${encodeURIComponent(a)}/${encodeURIComponent(b)}?period=${encodeURIComponent(period)}&tz=${encodeURIComponent(tz())}`),
+    money: (period, currency) => call("GET", `/api/admin/money?period=${encodeURIComponent(period)}&tz=${encodeURIComponent(tz())}${currency ? `&currency=${encodeURIComponent(currency)}` : ""}`),
+    books: (ccy) => call("GET", `/api/admin/books/${encodeURIComponent(ccy)}`),
+    setAside: (ccy, reason, expected) => call("POST", `/api/admin/books/${encodeURIComponent(ccy)}/set-aside`, { body: { reason, expected } }),
+    settlements: (status) => call("GET", `/api/admin/settlements?status=${encodeURIComponent(status)}`),
+    rates: () => call("GET", "/api/admin/rates"),
     logout: () => call("POST", "/api/admin/logout", { body: {} }).catch(() => null),
   };
 })();

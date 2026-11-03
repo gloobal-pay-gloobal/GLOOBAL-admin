@@ -10,17 +10,47 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const INT = new Intl.NumberFormat("en-IN");
   const IN2 = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const CMP = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
-  const short = (n) => CMP.format(n).replace(/(\d)T$/, "$1K");
-  const SYM = { INR: "₹", USD: "$", GBP: "£", EUR: "€" };
-  // One name per figure; rupees unless the figure is in another currency.
-  function money(v, ccy = "INR", compact = true) {
-    const n = Number(v) || 0;
-    const body = compact && Math.abs(n) >= 1000 ? short(n) : IN2.format(n).replace(/\.00$/, "");
-    const s = SYM[ccy];
-    if (!s) return `<span class="num">${body} ${esc(ccy)}</span>`;
-    return `<span class="num">${ccy === "INR" ? body + s : s + body}</span>`;
+  // ── GEU ON EVERY FIGURE (0219) ──────────────────────────────────────
+  // The app's rule, kept here too: GEU is the second name of a figure,
+  // never a conversion, and never written without the currency it is in.
+  //   Local:   18.4L₹ │ GEU      $4.1K │ USD
+  //   GEU:     18.4L GEU │ ₹     4.1K GEU │ USD
+  // Your own money is named by its symbol, anyone else's by its code. The
+  // name you are reading in is the bigger one; the other is 75% — smaller,
+  // not fainter. One switch (Local · GEU) in every screen's header.
+  const CMP_IN = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
+  const CMP_EN = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+  const SYM = { INR: ["₹", "after"], USD: ["$", "before"], GBP: ["£", "before"], EUR: ["€", "before"], JPY: ["¥", "before"], AED: ["AED", "code"], CNY: ["CNY", "code"] };
+  const LENS_KEY = "gloobal.staff.lens.v1";
+  let lens = "local";
+  try { lens = localStorage.getItem(LENS_KEY) === "geu" ? "geu" : "local"; } catch (e) { /* this tab only */ }
+  const setLens = (l) => { lens = l; try { localStorage.setItem(LENS_KEY, l); } catch (e) { /* */ } };
+  const own = () => { const s = window.AdminApi.session(); return (s && s.admin && s.admin.currency) || "INR"; };
+  function body(n, ccy, compact) {
+    const a = Math.abs(Number(n) || 0);
+    if (compact && a >= 1000) return (ccy === "INR" ? CMP_IN : CMP_EN).format(a).replace(/(\d)T$/, "$1K");
+    const d = ccy === "JPY" || ccy === "KRW" ? 0 : 2;
+    return new Intl.NumberFormat(ccy === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).format(a).replace(/\.00$/, "");
   }
+  // The figure as two parts: what you read it in, and its other name.
+  function moneyParts(v, ccy = "INR", compact = true) {
+    const code = String(ccy || "").toUpperCase();
+    const n = Number(v) || 0, sign = n < 0 ? "−" : "";
+    const b = body(n, code, compact);
+    const [sym, pos] = SYM[code] || [code, "code"];
+    const mine = code === own();
+    const real = pos === "before" ? `${sign}${sym}${b}` : pos === "after" ? `${sign}${b}${sym}` : `${sign}${b} ${code}`;
+    if (lens === "geu") return { lead: `${sign}${b} GEU`, trail: mine && pos !== "code" ? sym : code };
+    const trail = mine ? "GEU" : code;
+    return { lead: real, trail: pos === "code" && !mine ? "" : trail };
+  }
+  function money(v, ccy = "INR", compact = true) {
+    const p = moneyParts(v, ccy, compact);
+    return `<span class="num money">${esc(p.lead)}${p.trail ? `<span class="geu">│ ${esc(p.trail)}</span>` : ""}</span>`;
+  }
+  const moneyText = (v, ccy, compact = true) => { const p = moneyParts(v, ccy, compact); return p.trail ? `${p.lead} │ ${p.trail}` : p.lead; };
+  const lensBtn = () => `<button type="button" class="unit-btn" data-lens aria-label="Read money in ${lens === "geu" ? "local currency" : "GEU"}"><b class="${lens === "local" ? "on" : ""}">Local</b> · <b class="${lens === "geu" ? "on" : ""}">GEU</b></button>`;
+  const plural = (n, word) => `${INT.format(Number(n) || 0)} ${word}${Number(n) === 1 ? "" : "s"}`;
   const count = (n) => `<span class="num">${INT.format(Math.round(Number(n) || 0))}</span>`;
   const ago = (d) => { const s = Math.max(0, (Date.now() - new Date(d)) / 1000); if (s < 60) return "just now"; if (s < 3600) return `${Math.floor(s / 60)} min ago`; if (s < 86400) return `${Math.floor(s / 3600)} h ago`; return new Date(d).toLocaleDateString([], { day: "numeric", month: "short" }); };
   const clock = (d) => new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -54,7 +84,7 @@
   };
   // Part 1 is live; the rest arrive part by part, in this order.
   const NAV = [
-    ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", 3], ["money", "Money & books", 3], ["lookup", "Look up", null],
+    ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", null], ["money", "Money & books", null], ["lookup", "Look up", null],
     ["growth", "Growth", 4], ["shops", "Shops", 4], ["problems", "Problems", 4], ["risk", "Risk", 4],
     ["live", "Live feed", 5], ["system", "Server & deploys", 5], ["alerts", "Alerts", 5], ["team", "Team & roles", null], ["audit", "Audit log", null],
   ];
@@ -63,8 +93,8 @@
   const ROLES = {
     admin: { name: "Admin", tone: "var(--accent)", home: "today", what: "Everything, every country, every action. Decides who is on the team.", nav: NAV.map((n) => n[0]) },
     support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "lookup", "problems", "live"] },
-    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "money", "countries", "problems", "lookup"] },
-    risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "risk", "lookup", "live", "problems"] },
+    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "money", "countries", "lookup", "problems"] },
+    risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "countries", "lookup", "risk", "live", "problems"] },
     tech: { name: "Tech", tone: "#3B6EF5", home: "system", what: "Server, deploys, errors, background jobs. Sees no one's money or numbers.", nav: ["system", "live", "alerts"] },
   };
   const CAN = [
@@ -72,7 +102,11 @@
     ["Answer people and shops", ["admin", "support", "finance", "risk"]],
     ["See every chat on the desk", ["admin", "support"]],
     ["See chats passed to them", ["admin", "support", "finance", "risk"]],
+    ["Look up an account", ["admin", "support", "finance", "risk"]],
     ["See balances and full phone numbers", ["admin", "finance", "risk"]],
+    ["See Countries", ["admin", "finance", "risk"]],
+    ["See Money & books", ["admin", "finance"]],
+    ["Set a books gap aside", ["admin"]],
     ["See server, deploys, errors", ["admin", "tech"]],
     ["Add or remove people on the team", ["admin"]],
     ["Read the audit log", ["admin"]],
@@ -96,17 +130,22 @@
   const roleNav = () => NAV.filter((n) => ROLES[ROLE()].nav.includes(n[0]));
   // Four on the phone's tab bar; "More" always holds the rest, alerts and sign out.
   const roleTabs = () => roleNav().map((n) => n[0]).slice(0, 4);
-  const allowed = (k) => ROLES[ROLE()].nav.includes(k) || (k === "ticket" && ROLES[ROLE()].nav.includes("desk")) || (k === "account" && ROLES[ROLE()].nav.includes("lookup"));
+  const allowed = (k) => ROLES[ROLE()].nav.includes(k) || (k === "ticket" && ROLES[ROLE()].nav.includes("desk")) || (k === "account" && ROLES[ROLE()].nav.includes("lookup")) || (["country", "pair"].includes(k) && ROLES[ROLE()].nav.includes("countries")) || (["books", "settlements", "rates"].includes(k) && ROLES[ROLE()].nav.includes("money"));
   const rolePill = (r) => `<span class="pill" style="background:color-mix(in srgb, ${ROLES[r].tone} 14%, var(--surface));color:${ROLES[r].tone}">${ROLES[r].name}</span>`;
   const hideMoney = () => ["support", "tech"].includes(ROLE());
 
   const S = { stage: "door", id: "", pin: "", pre: null, preRole: null, setupCode: "", busy: false, error: "", today: null, todayAt: null, audit: null, more: false, loading: false,
     welcome: false, viewAs: null, dtab: null, desk: null, ticketId: null, ticket: null, draft: "", sending: false, passing: null, passNote: "", team: null, add: { id: "", role: "support" }, issued: null, confirmRemove: null,
-    q: "", found: null, searching: false, accountId: null, account: null, alerts: "unknown" };
+    q: "", found: null, searching: false, accountId: null, account: null, alerts: "unknown",
+    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null };
   const route = () => {
     const h = (location.hash || "").slice(1);
     if (h.startsWith("ticket/")) { S.ticketId = decodeURIComponent(h.slice(7)); return "ticket"; }
     if (h.startsWith("account/")) { S.accountId = decodeURIComponent(h.slice(8)); return "account"; }
+    if (h.startsWith("country/")) { S.iso = decodeURIComponent(h.slice(8)); return "country"; }
+    if (h.startsWith("pair/")) { [S.pairA, S.pairB] = h.slice(5).split("/").map(decodeURIComponent); return "pair"; }
+    if (h.startsWith("books/")) { S.booksCcy = decodeURIComponent(h.slice(6)); return "books"; }
+    if (h === "settlements" || h === "rates") return h;
     return NAV.some((n) => n[0] === h) ? h : ROLES[ROLE()].home;
   };
   const go = (r) => { S.more = false; if (location.hash.slice(1) === r) render(); else location.hash = r; };
@@ -130,7 +169,7 @@
     const p = Math.round(((cur - avg) / avg) * 100);
     return `<span class="delta ${p >= 0 ? "up" : "down"}">${p >= 0 ? "▲" : "▼"} ${Math.abs(p)}% vs 7-day average</span>`;
   }
-  const header = (title, sub, extra = "") => `<div class="top"><h1>${title}<span class="sub">${sub}</span></h1>${extra}<button type="button" class="icon-btn" data-theme-toggle aria-label="Light or dark">${ICON.sun}</button></div>`;
+  const header = (title, sub, extra = "", back = "") => `<div class="top">${back ? `<button type="button" class="icon-btn" data-go="${back}" aria-label="Back">${ICON.back}</button>` : ""}<h1>${title}<span class="sub">${sub}</span></h1>${extra}${lensBtn()}<button type="button" class="icon-btn" data-theme-toggle aria-label="Light or dark">${ICON.sun}</button></div>`;
 
   /* ── sign in ── */
   const SYMBOLS = ["−", "+", "×", "=", "○", "□", "●", "■"];
@@ -180,9 +219,10 @@
     ];
     const hours = d.hourly.today.length;
     const labels = hours > 12 ? ["12 am", "6 am", "12 pm", hours > 18 ? "6 pm" : ""].filter(Boolean) : ["12 am", hours > 6 ? "6 am" : ""].filter(Boolean);
-    const flags = d.flags.length ? `<div class="flags">${d.flags.map((f) => `<div class="flag" style="--sev:var(--${f.tone === "bad" ? "bad" : "warn"})"><span class="pill ${f.tone === "bad" ? "bad" : "warn"}">${esc(f.kind)}</span><span class="t">${esc(f.title)}<small>${esc(f.detail || "")}</small></span></div>`).join("")}</div>` : `<div class="flags"><div class="flag" style="--sev:var(--good)"><span class="pill good">All clear</span><span class="t">Nothing needs you right now<small>books, complaints and bank transfers checked</small></span></div></div>`;
+    const flagText = (f) => (f.kind === "books" && d.books && d.books.off ? { title: `The books are off by ${money(Math.abs(d.books.differenceInr), "INR")} at today's rates`, detail: d.books.off.slice(0, 6).map((o) => `${esc(o.currency)} ${moneyText(o.difference, o.currency)}`).join(" · "), raw: true } : f);
+    const flags = d.flags.length ? `<div class="flags">${d.flags.map((f0) => flagText(f0)).map((f) => `<div class="flag" style="--sev:var(--${f.tone === "bad" ? "bad" : "warn"})"><span class="pill ${f.tone === "bad" ? "bad" : "warn"}">${esc(f.kind)}</span><span class="t">${f.raw ? f.title : esc(f.title)}<small>${f.raw ? f.detail : esc(f.detail || "")}</small></span></div>`).join("")}</div>` : `<div class="flags"><div class="flag" style="--sev:var(--good)"><span class="pill good">All clear</span><span class="t">Nothing needs you right now<small>books, complaints and bank transfers checked</small></span></div></div>`;
     const b = d.books;
-    const books = b ? card("Does the money add up?", b.checkedAt ? `checked ${clock(b.checkedAt)}` : "", b.ok ? `<p style="font-weight:800;color:var(--good);margin:10px 0 0">Yes, exactly.</p>` : `${rows(b.off.slice(0, 6).map((o) => kv(esc(o.currency), `<span class="${o.difference < 0 ? "down" : "up"}">${o.difference > 0 ? "+" : ""}${IN2.format(o.difference)}</span>`)))}<p class="muted" style="font-size:12px;font-weight:600;margin:10px 0 0">In all, ${money(Math.abs(b.differenceInr))} ${b.differenceInr < 0 ? "short" : "over"} at today's rates.</p>`) : card("Does the money add up?", "", `<p class="muted">The books check did not answer.</p>`);
+    const books = b ? card("Does the money add up?", b.checkedAt ? `checked ${clock(b.checkedAt)}` : "", b.ok ? `<p style="font-weight:800;color:var(--good);margin:10px 0 0">Yes, exactly.</p>` : `${rows(b.off.slice(0, 6).map((o) => kv(esc(o.currency), `<span class="${o.difference < 0 ? "down" : "up"}">${o.difference > 0 ? "+" : ""}${money(o.difference, o.currency, false)}</span>`)))}<p class="muted" style="font-size:12px;font-weight:600;margin:10px 0 0">In all, ${money(Math.abs(b.differenceInr))} ${b.differenceInr < 0 ? "short" : "over"} at today's rates.</p>`) : card("Does the money add up?", "", `<p class="muted">The books check did not answer.</p>`);
     const ev = { pay: ["var(--accent-soft)", "var(--accent)"], join: ["var(--good-soft)", "var(--good)"], complaint: ["var(--bad-soft)", "var(--bad)"] };
     const recent = card("Latest", "", rows(d.recent.map((e) => `<div class="row"><span class="ev" style="background:${ev[e.kind][0]};color:${ev[e.kind][1]}">${ICON[e.kind] || ICON.pay}</span><div class="grow"><div class="name">${esc(e.title)}</div><div class="meta">${ago(e.at)}${e.status ? ` · ${esc(e.status)}` : ""}</div></div>${e.amount ? `<div class="amt">${money(e.amount, e.currency, false)}</div>` : ""}</div>`)) || '<p class="muted">Nothing yet.</p>');
     return header("Today", sub, refresh) + flags +
@@ -202,7 +242,8 @@
   }
   function viewSoon(key) {
     const [, label, part] = NAV.find((n) => n[0] === key);
-    return header(label, `Coming in part ${part}`) + `<section class="card soon"><span class="pill info">Part ${part}</span><p>${esc(SOON[key])}</p><p class="muted">You can try how it will look in the prototype. Today and the audit log are live now.</p></section>`;
+    const liveNow = roleNav().filter((n) => !n[2]).map((n) => n[1]).join(", ");
+    return header(label, `Coming in part ${part}`) + `<section class="card soon"><span class="pill info">Part ${part}</span><p>${esc(SOON[key])}</p><p class="muted">Live now on your desk: ${esc(liveNow)}.</p></section>`;
   }
 
   /* ── the Support desk (0216) ── */
@@ -251,7 +292,7 @@
     const passTo = [["finance", "Refund or payout"], ["risk", "Looks like fraud"], ["admin", "Needs the founder"]].filter(([r]) => r !== realRole());
     const passing = S.passing ? `<div class="note" style="margin-top:10px"><b>Pass to ${ROLES[S.passing].name}</b><textarea id="passnote" placeholder="What they need to know (only staff see this)" style="width:100%;min-height:54px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:8px">${esc(S.passNote)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn" data-pass-confirm style="flex:1">Pass it on</button><button type="button" class="btn quiet" data-pass-cancel style="flex:1">Cancel</button></div></div>` : "";
     const done = t.status === "done";
-    return `<div class="top">${back}<h1>${esc(t.topicWords)}<span class="sub">${esc(cx.shop || cx.name)} · ${t.side === "shop" ? "shop" : "person"} · ${esc(t.ref)}</span></h1>${t.status === "done" ? '<span class="pill good">done</span>' : t.status === "waiting" ? '<span class="pill quiet">waiting on them</span>' : t.passedTo ? `<span class="pill warn">with ${ROLES[t.passedTo].name}</span>` : ""}</div>` +
+    return `<div class="top">${back}<h1>${esc(t.topicWords)}<span class="sub">${esc(cx.shop || cx.name)} · ${t.side === "shop" ? "shop" : "person"} · ${esc(t.ref)}</span></h1>${t.status === "done" ? '<span class="pill good">done</span>' : t.status === "waiting" ? '<span class="pill quiet">waiting on them</span>' : t.passedTo ? `<span class="pill warn">with ${ROLES[t.passedTo].name}</span>` : ""}${lensBtn()}</div>` +
       `<div class="grid g2 tgrid"><section class="card airy chat" aria-label="The chat">${bubbles}
         ${done ? '<p class="muted" style="font-size:12.5px;font-weight:700;margin:4px 0 0">Marked done. If they write again it comes back to the desk.</p>' : ""}
         <div class="chips" style="margin-top:6px">${QUICK.map((q) => `<button type="button" class="chip" data-quick="${esc(q)}">${esc(q)}</button>`).join("")}</div>
@@ -289,7 +330,7 @@
     const phone = hidden && realRole() === "admin" ? '<span class="muted">hidden</span>' : esc(a.phone || "—");
     const list = (items, empty) => items.length ? `<div class="rows">${items.join("")}</div>` : `<p class="muted" style="font-weight:600;font-size:12.5px;margin:6px 0 0">${empty}</p>`;
     const canDesk = allowed("desk");
-    return `<div class="top">${back}<h1>${esc(a.shop || a.name || "—")}<span class="sub">${a.shop && a.name ? `${esc(a.name)} · ` : ""}${esc(a.symbolId)}</span></h1></div>` +
+    return `<div class="top">${back}<h1>${esc(a.shop || a.name || "—")}<span class="sub">${a.shop && a.name ? `${esc(a.name)} · ` : ""}${esc(a.symbolId)}</span></h1>${lensBtn()}</div>` +
       `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${[["Paid, 30 days", count(a.last30.paid), "payments sent"], ["Received, 30 days", count(a.last30.received), "payments in"], ["Chats with Support", count(a.chats.length), a.chats.filter((c) => c.status !== "done").length ? `${a.chats.filter((c) => c.status !== "done").length} open` : "none open"], ["Complaints", count(a.complaints.length), a.complaints.filter((c) => !["solved"].includes(c.status)).length ? "some open" : "none open"]].map(([l, v, d]) => `<div class="kpi" style="cursor:default"><span class="label">${l}</span><span class="val">${v}</span><span class="delta muted">${esc(d)}</span></div>`).join("")}</div>` +
       `<div class="grid g2 tgrid">` +
       `<section class="card airy"><h3>Who they are<span class="muted">${a.shop ? "creator" : "person"}</span></h3>${line("Country", esc(a.country || "—"))}${line("With GLOOBAL since", esc(new Date(a.since).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })))}${line("Phone", phone)}${line("Balance", balance)}${a.owner ? line("A shop of", `<button type="button" class="linkbtn" data-account="${esc(a.owner.symbolId)}" style="padding:0">${esc(a.owner.name)}</button>`) : ""}${a.referredBy ? line("Joined with", `<button type="button" class="linkbtn" data-account="${esc(a.referredBy.symbolId)}" style="padding:0">${esc(a.referredBy.name)}</button>`) : ""}${a.shops.length ? `<div class="eyebrow" style="margin-top:14px">Their shops</div><div class="chips" style="margin-top:6px">${a.shops.map((s) => `<button type="button" class="chip" data-account="${esc(s.symbolId)}">${esc(s.name)}</button>`).join("")}</div>` : ""}${hidden ? `<p class="muted" style="font-size:11.5px;font-weight:600;margin:10px 0 0">Hidden for ${ROLES[ROLE()].name}: the balance and the full phone number.</p>` : ""}</section>` +
@@ -297,6 +338,117 @@
       `<section class="card airy"><h3>GLOOBAL Bank</h3>${list(a.bankTransfers.map((t) => `<div class="row"><div class="grow"><div class="name">${t.direction === "in" ? "Added from" : "Sent to"} ${esc(t.method.toUpperCase())}</div><div class="meta">${ago(t.at)}${t.returnReason ? ` · ${esc(t.returnReason)}` : ""}</div></div>${statusPill(t.status)}<div class="amt">${money(t.amount, t.currency, false)}</div></div>`), "No bank transfers.")}</section>` +
       `<section class="card airy"><h3>Chats and complaints</h3>${list([...a.chats.map((c) => `<${canDesk ? `button type="button" data-ticket="${esc(c.id)}"` : "div"} class="row" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit;${canDesk ? "cursor:pointer" : ""}"><div class="grow"><div class="name">Chat ${esc(c.ref)} · ${esc(c.topic)}</div><div class="meta">${ago(c.at)}${c.passedTo ? ` · with ${esc(ROLES[c.passedTo] ? ROLES[c.passedTo].name : c.passedTo)}` : ""}</div></div>${statusPill(c.status)}</${canDesk ? "button" : "div"}>`), ...a.complaints.map((c) => `<div class="row"><div class="grow"><div class="name">Complaint ${esc(c.ref)} · ${esc(String(c.reason).replace(/_/g, " "))}</div><div class="meta">${c.reported ? "they reported it" : "reported against them"} · ${ago(c.at)}</div></div>${statusPill(c.status)}</div>`)], "None.")}</section>` +
       `</div>`;
+  }
+
+  /* ── Countries and Money & books (0219) ── */
+  const PERIODS = [["today", "Today"], ["7d", "7 days"], ["30d", "30 days"], ["all", "All time"]];
+  const periodRow = (on = S.period) => `<div class="chiprow" role="group" aria-label="Period">${PERIODS.map(([k, l]) => `<button type="button" data-period="${k}" aria-pressed="${on === k}">${l}</button>`).join("")}</div>`;
+  const isoChip = (iso) => `<span class="iso">${esc(iso)}</span>`;
+  const loading = (title, sub, back) => header(title, sub, "", back) + (S.error ? `<div class="note err">${esc(S.error)}</div>` : `<section class="card"><p class="muted" style="font-weight:700;margin:0">Adding it up…</p></section>`);
+  const splitBar = (parts) => { const t = parts.reduce((s, p) => s + Math.max(0, p[0]), 0) || 1; return `<div class="sbar">${parts.map(([v, c]) => (v > 0 ? `<i style="width:${Math.max(2, (v / t) * 100)}%;background:${c}"></i>` : "")).join("")}</div>`; };
+  const C_FREE = "var(--accent)", C_LOCK = "#C98500";
+  const signed = (v, ccy, compact = true) => `<span class="${v > 0 ? "up" : v < 0 ? "down" : ""}">${v > 0 ? "+" : ""}${money(v, ccy, compact)}</span>`;
+  const agoText = (d) => (d ? ago(d) : "never");
+  // A rate is two figures, each with its name: "$1 │ USD = 88.42₹ │ GEU".
+  function rateMoney(v, ccy) {
+    const p = moneyParts(1, ccy, false);
+    const f = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(v);
+    const q = moneyParts(0, ccy, false);
+    const lead = p.lead.replace(/1(\.00)?/, f);
+    return `<span class="num money">${esc(lead)}${q.trail ? `<span class="geu">│ ${esc(q.trail)}</span>` : ""}</span>`;
+  }
+  const rateLine = (one, equals, into) => `${money(1, one, false)} = ${rateMoney(equals, into)}`;
+
+  function viewCountries() {
+    const d = S.cdata;
+    if (!d || d.period !== S.period) return loading("Countries", "Where the money sits");
+    const tiles = d.countries.filter((c) => c.accounts + c.shops > 0).map((c) => `<button type="button" class="ctile" data-go="country/${esc(c.iso)}"><span class="nm">${isoChip(c.iso)}${esc(c.name)}</span><span class="big">${money(c.held, c.currency)}</span>${splitBar([[c.free, C_FREE], [c.locked, C_LOCK]])}<span class="mini">${plural(c.accounts, "account")}${c.shops ? ` · ${plural(c.shops, "shop")}` : ""} · ${INT.format(c.payments)} paid</span></button>`).join("");
+    const maxN = Math.max(1, ...d.busiest.map((p) => p.ab + p.ba));
+    const pairs = d.busiest.length ? d.busiest.map((p) => `<button type="button" class="row tap" data-go="pair/${esc(p.a)}/${esc(p.b)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><div class="grow"><div class="name">${esc(p.nameA)} ⇄ ${esc(p.nameB)}</div><div class="pbar"><i style="width:${(p.ab / maxN) * 100}%;background:#EB6834"></i><i style="width:${(p.ba / maxN) * 100}%;background:var(--accent-2)"></i></div><div class="meta">${INT.format(p.ab)} → · ${INT.format(p.ba)} ←</div></div><div class="amt">${money(p.value, p.valueCurrency)}</div></button>`).join("") : '<p class="muted" style="font-weight:600;margin:6px 0 0">No payments between countries in this period.</p>';
+    const look = d.needsALook.length ? d.needsALook.map((l) => `<div class="row"><div class="grow"><div class="name" style="white-space:normal">${esc(l.text)}</div></div><span class="pill ${l.tone === "bad" ? "bad" : "warn"}">${l.kind}</span></div>`).join("") : '<div class="row"><div class="grow"><div class="name">Nothing needs a look.</div><div class="meta">Pools, payments between countries and rates checked.</div></div><span class="pill good">clear</span></div>';
+    return header("Countries", "Tap one · then compare it with another") + periodRow() +
+      `<div class="ctiles">${tiles}</div><div class="keyrow"><span><i style="background:${C_FREE}"></i>Free to use</span><span><i style="background:${C_LOCK}"></i>Essentials locked (can't leave GLOOBAL)</span></div>` +
+      `<div class="grid g2 tgrid">${card("Busiest pairs", `${PERIODS.find((x) => x[0] === d.period)[1]} · both ways · sized in ${d.viewerCurrency}`, `<div class="rows">${pairs}</div>`)}${card("Needs a look", "", `<div class="rows">${look}</div>`)}</div>`;
+  }
+  function viewCountry() {
+    const c = S.country;
+    if (!c || c.iso !== S.iso || c.period !== S.period) return loading(S.iso || "Country", "Adding it up", "countries");
+    const ccy = c.currency;
+    const pools = c.pools.length ? c.pools.map((p) => `<${p.counterIso ? `button type="button" data-go="pair/${esc(c.iso)}/${esc(p.counterIso)}"` : "div"} class="row tap" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><div class="grow"><div class="name">For ${esc(p.counterName)} <span class="muted" style="font-weight:700">(${esc(p.counterCurrency)})</span></div><div class="meta">${p.position > 0 ? "collected for them" : p.position < 0 ? "paid out for them" : "even"}${p.borrowed ? ` · PayLater lent ${moneyText(p.borrowed, ccy)}` : ""}${p.usedShare ? ` · ${Math.round(p.usedShare * 100)}% spoken for` : ""}</div></div><div class="amt">${signed(p.position, ccy)}</div></${p.counterIso ? "button" : "div"}>`).join("") : '<p class="muted" style="font-weight:600;margin:6px 0 0">No pools opened yet — nobody here has paid abroad or been paid from abroad.</p>';
+    const across = c.across.length ? c.across.map((o) => `<button type="button" class="row tap" data-go="pair/${esc(c.iso)}/${esc(o.iso)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><div class="grow"><div class="name">${isoChip(o.iso)} ${esc(o.name)}</div><div class="meta">${INT.format(o.out)} paid to · ${INT.format(o.in)} from</div></div><div class="amt" style="text-align:right">${o.sent ? `<div>${money(-o.sent, ccy)}</div>` : ""}${o.received ? `<div class="up">+${money(o.received, ccy)}</div>` : ""}</div></button>`).join("") : '<p class="muted" style="font-weight:600;margin:6px 0 0">No payments with other countries in this period.</p>';
+    const pl = c.paylater;
+    const canMoney = allowed("money");
+    return header(esc(c.name), `${esc(c.iso)} · ${esc(ccy)} · ${plural(c.accounts, "account")}${c.shops ? ` · ${plural(c.shops, "shop")}` : ""}`, "", "countries") + periodRow() +
+      `<div class="grid g2 tgrid"><div><section class="wallet"><span class="eb">Held in ${esc(c.name)} · now</span><div class="wbig">${money(c.held, ccy)}</div>${splitBar([[c.free, "rgba(255,255,255,.9)"], [c.locked, "#F5B83D"]])}<div class="wlines">${line("Free to use", money(c.free, ccy))}${line("Essentials locked", money(c.locked, ccy))}</div></section>` +
+      `${card("With other countries", PERIODS.find((x) => x[0] === c.period)[1], `<div class="rows">${across}</div>`)}</div><div>` +
+      card(`${esc(c.name)}'s pools, one per country`, "now", `<div class="rows">${pools}</div><p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">A pool takes local money from people here paying abroad, and pays out for people abroad paying here. What builds up is squared between the countries' banks.</p>`) +
+      card("PayLater", "this country's float", pl ? `${line("Country total", money(pl.total, ccy))}${line("Lent into pools now", money(pl.borrowed, ccy))}${line("Room left", `<span class="up">${money(pl.headroom, ccy)}</span>`)}` : '<p class="muted">Not answered.</p>') +
+      card("GLOOBAL Bank", PERIODS.find((x) => x[0] === c.period)[1], `${line("Added from banks", signed(c.banks.added, ccy))}${line("Sent to banks", signed(-c.banks.sent, ccy))}${line("On the way", money(c.banks.onTheWay, ccy))}${c.banks.returned ? line("Returned", money(c.banks.returned, ccy)) : ""}`) +
+      card("Essentials", PERIODS.find((x) => x[0] === c.period)[1], `${line("Drawn", money(c.essentials.drawn, ccy))}${line("People", count(c.essentials.people))}`) +
+      (canMoney ? `<button type="button" class="btn quiet" data-go="books/${esc(ccy)}" style="width:100%">Books for ${esc(ccy)} ›</button>` : "") + `</div></div>`;
+  }
+  function viewPair() {
+    const d = S.pairData;
+    const key = `${S.pairA}/${S.pairB}`;
+    if (!d || d.key !== key || d.periodAsked !== S.period) return loading(`${S.pairA} ⇄ ${S.pairB}`, "two countries together", `country/${S.pairA}`);
+    const A = d.a, B = d.b;
+    const pos = (x) => (x.pool && x.pool.opened ? signed(x.pool.position, x.currency) : '<span class="muted">not opened</span>');
+    const maxD = Math.max(1, ...d.daily.map((x) => Math.max(x.ab, x.ba)));
+    const chart = `<div class="duo">${d.daily.map((x) => `<div><i style="height:${(x.ab / maxD) * 100}%;background:#EB6834" title="${x.ab}"></i><i style="height:${(x.ba / maxD) * 100}%;background:var(--accent-2)" title="${x.ba}"></i></div>`).join("")}</div><div class="duo-days">${d.daily.map((x) => `<span>${esc(x.day.slice(8))}</span>`).join("")}</div><div class="keyrow"><span><i style="background:#EB6834"></i>${esc(A.name)} → ${esc(B.name)}</span><span><i style="background:var(--accent-2)"></i>${esc(B.name)} → ${esc(A.name)}</span></div>`;
+    const sq = d.squareUp ? `<div class="square"><span><b>${esc(d.squareUp.fromName)}</b> owes <b>${esc(d.squareUp.toName)}</b></span><div class="wbig" style="font-size:26px">${money(d.squareUp.amount, d.squareUp.currency, false)}</div><span class="muted" style="font-weight:600;font-size:12px">what ${esc(d.squareUp.toName)}'s pool paid out beyond its float · squared between the two countries' banks</span></div>` : '<p class="muted" style="font-weight:700;margin:6px 0 0">Even — neither pool has paid out more than it took in.</p>';
+    return header(`${esc(A.name)} ⇄ ${esc(B.name)}`, "two countries together", "", `country/${A.iso}`) + periodRow() +
+      `<div class="grid g2 tgrid"><div><section class="wallet" style="text-align:center"><span class="eb">Rate used now</span><div class="wbig" style="font-size:22px">${d.rate ? rateLine(d.rate.one, d.rate.equals, d.rate.in) : "same currency"}</div>${d.rate ? `<span style="font-size:12px;opacity:.8;font-weight:700">${esc(d.rate.source)} · ${agoText(d.rate.fetchedAt)}</span>` : ""}</section>` +
+      card("Side by side", PERIODS.find((x) => x[0] === d.period)[1], `<div class="vs"><div></div><div class="vh">${isoChip(A.iso)} ${esc(A.name)}</div><div class="vh">${isoChip(B.iso)} ${esc(B.name)}</div>
+        <div class="vk">Paid across</div><div>${count(A.sent)}</div><div>${count(B.sent)}</div>
+        <div class="vk">Amount sent</div><div>${money(A.sentAmount, A.currency)}</div><div>${money(B.sentAmount, B.currency)}</div>
+        <div class="vk">Pool for the other</div><div>${pos(A)}</div><div>${pos(B)}</div>
+        <div class="vk">Failed</div><div>${count(A.failed)}</div><div>${count(B.failed)}</div></div>`) + `</div><div>` +
+      card("Squaring up", "now", sq) + card("Each day", "last 7 days · payments", chart) + `<p class="muted" style="font-size:12px;font-weight:600;text-align:center">Pausing a pair comes later, with Risk, and will be logged.</p></div></div>`;
+  }
+
+  function viewMoney() {
+    const d = S.mdata;
+    if (!d || d.period !== S.period) return loading("Money & books", "Does it add up · what moved it");
+    const bad = d.currencies.filter((c) => !c.ok), good = d.currencies.filter((c) => c.ok);
+    const crow = (c) => `<button type="button" class="row tap" data-go="books/${esc(c.currency)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><div class="grow"><div class="name">${esc(c.currency)}</div><div class="meta">${plural(c.accounts, "account")} · holds ${moneyText(c.held, c.currency)}${c.legacy ? " · a gap set aside" : ""}</div></div><div class="amt">${c.ok ? '<span class="muted">matches</span>' : `<span class="down">${c.difference > 0 ? "+" : ""}${money(c.difference, c.currency, false)}</span>`}</div><span class="pill ${c.ok ? "good" : "bad"}">${c.ok ? "ok" : c.difference > 0 ? "over" : "short"}</span></button>`;
+    const m = d.moved;
+    const maxL = Math.max(1, ...m.lines.map((l) => Math.abs(l.amount)));
+    const lines = m.lines.map((l) => `<span>${esc(l.label)}</span><div class="trk"><i style="${l.amount >= 0 ? "left:0" : "right:0"};width:${(Math.abs(l.amount) / maxL) * 100}%;background:${l.amount >= 0 ? "var(--good)" : "var(--bad)"}"></i></div><b>${signed(l.amount, m.currency)}</b>`).join("");
+    const ccys = d.choices.map((c) => `<button type="button" data-moneyccy="${esc(c)}" aria-pressed="${c === m.currency}">${esc(c)}</button>`).join("");
+    return header("Money & books", "Does it add up · what moved it") + periodRow() +
+      `<div class="grid g2 tgrid"><div>` + card(`${d.matching} of ${d.total} currencies match`, `checked ${clock(d.checkedAt)} · worst first`, `<div class="rows">${bad.map(crow).join("")}${good.map(crow).join("")}</div>`) + `</div><div>` +
+      card(`What moved ${esc(m.currency)}`, PERIODS.find((x) => x[0] === d.period)[1], `<div class="chiprow small">${ccys}</div><div class="wf">${lines}<span style="color:var(--ink);font-weight:800">Held now</span><div></div><b>${money(m.heldNow, m.currency)}</b></div><p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">Payments between people inside GLOOBAL move money around and don't change the total.</p>`) +
+      `<div class="grid g2" style="margin-top:14px"><button type="button" class="btn quiet" data-go="settlements">Between countries ›</button><button type="button" class="btn quiet" data-go="rates">Exchange rates ›</button></div></div></div>`;
+  }
+  function viewBooks() {
+    const b = S.books;
+    if (!b || b.currency !== S.booksCcy) return loading(`Books for ${S.booksCcy || ""}`, "should be here vs is here", "money");
+    const c = b.currency, sh = b.should, dz = b.does;
+    const isAdmin = realRole() === "admin";
+    const aside = S.aside && S.aside.ccy === c ? `<div class="note" style="margin-top:12px;background:rgba(255,255,255,.14);color:#fff"><b>Set ${moneyText(b.difference, c, false)} aside</b><br><span style="font-size:12px;opacity:.85">Write why it is explained. From now on only a new gap shows red. It goes in the audit log.</span><textarea id="aside-reason" placeholder="e.g. Accounts moved from India to other countries before 0214 kept their rupee history" style="width:100%;min-height:64px;border-radius:12px;border:none;padding:8px 10px;font:inherit;margin-top:8px;color:var(--ink)">${esc(S.aside.reason)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn" data-aside-confirm style="flex:1;background:#fff;color:var(--accent-deep)" ${S.aside.busy ? "disabled" : ""}>${S.aside.busy ? "Setting aside…" : "Set it aside"}</button><button type="button" class="btn quiet" data-aside-cancel style="flex:1">Cancel</button></div></div>` : "";
+    const hist = b.history.map((h) => `<i class="${h.ok === true ? "ok" : h.ok === false ? "off" : "none"}" title="${esc(h.day)}: ${h.ok === null ? "not checked" : h.ok ? "matched" : `off by ${h.difference}`}"></i>`).join("");
+    return header(`Books for ${esc(c)}`, `checked ${clock(b.checkedAt)} · ${plural(b.accounts, "account")}`, "", "money") +
+      `<div class="grid g2 tgrid"><div><section class="wallet"><span class="eb">${b.ok ? "It adds up" : "Difference"}</span><div class="wbig">${b.ok ? "Matches" : `${b.difference > 0 ? "+" : ""}${money(b.difference, c, false)}`}</div><p style="margin:0;font-size:12.5px;font-weight:700;opacity:.85;line-height:1.45">${b.ok ? "What is here is what the records say should be." : b.difference > 0 ? "More is here than the records explain." : "Less is here than the records say should be."}${b.baseline ? ` A gap of ${esc(moneyText(b.baseline.amount, c, false))} was set aside ${esc(new Date(b.baseline.setAt).toLocaleDateString([], { day: "numeric", month: "short" }))}: ${esc(b.baseline.reason)}` : ""}</p>${!b.ok && isAdmin && !S.aside ? `<button type="button" class="btn" data-aside="${esc(c)}" style="width:100%;margin-top:12px;background:rgba(255,255,255,.18)">Set this gap aside…</button>` : ""}${aside}</section>` +
+      card("Last checks", "one a day", `<div class="hist">${hist}</div>`) + `</div><div>` +
+      card("Should be here", money(b.shouldExist, c), `${line("Opening balances", money(sh.opening, c))}${line("Pools opened", money(sh.pools, c))}${line("GLOOBAL payouts (Essentials and more)", signed(sh.payouts, c))}${line("PayLater lent into pools", signed(sh.poolFunding, c))}${line("Added from banks", signed(sh.bankIn, c))}${line("Sent to banks", signed(-sh.bankOut, c))}${sh.legacy ? line("Set aside (explained)", signed(sh.legacy, c)) : ""}`) +
+      card("Is here", money(b.doesExist, c), `${line("In people's and shops' balances", money(dz.balances, c))}${line("In pools", money(dz.pools, c))}${line("Creator Share held", money(dz.custody, c))}`) + `</div></div>`;
+  }
+  function viewSettlements() {
+    const d = S.setl;
+    if (!d || d.status !== S.setlTab) return loading("Between countries", "squaring up · each payment that crossed", "money");
+    const sq = d.squareUp.length ? d.squareUp.map((x) => `<div class="row"><div class="grow"><div class="name">${esc(x.fromName)} owes ${esc(x.toName)}</div><div class="meta">what ${esc(x.toName)}'s pool paid out beyond its float</div></div><div class="amt">${money(x.amount, x.currency, false)}</div></div>`).join("") : '<div class="row"><div class="grow"><div class="name">All square</div><div class="meta">No pool has paid out more than it took in.</div></div><span class="pill good">even</span></div>';
+    const rowsH = d.rows.length ? d.rows.map((r) => `<div class="row"><div class="grow"><div class="name">${esc(r.fromName)} → ${esc(r.toName)}</div><div class="meta">${esc(r.payer)} paid ${esc(r.payee)} · ${ago(r.at)}${r.failureReason ? ` · ${esc(r.failureReason)}` : ""}</div></div><div class="amt" style="text-align:right"><div>${money(r.sent, r.sentCurrency, false)}</div><div class="muted" style="font-size:12px">→ ${money(r.got, r.gotCurrency, false)}</div></div></div>`).join("") : `<p class="muted" style="font-weight:600;margin:6px 0 0">None ${d.status === "failed" ? "failed" : "yet"}.</p>`;
+    const tabs = [["settled", "Settled"], ["failed", "Failed"]];
+    return header("Between countries", "Every payment across settles at once · what builds up is squared between banks", "", "money") +
+      `<div class="grid g2 tgrid"><div>${card("Squaring up", "now, by pair", `<div class="rows">${sq}</div>`)}</div><div><div class="chiprow" role="group">${tabs.map(([k, l]) => `<button type="button" data-setl="${k}" aria-pressed="${S.setlTab === k}">${l} <b>${INT.format(d.counts[k] || 0)}</b></button>`).join("")}</div>${card("Payments that crossed", "latest first", `<div class="rows">${rowsH}</div>`)}</div></div>`;
+  }
+  function viewRates() {
+    const d = S.rates;
+    if (!d) return loading("Exchange rates", "what GLOOBAL converts at", "money");
+    const tone = (h) => (h === null ? ["bad", "missing"] : h < 24 ? ["good", "fresh"] : h < 72 ? ["warn", `${Math.round(h)} h old`] : ["bad", `${Math.round(h / 24)} days old`]);
+    const rowsH = d.rates.length ? d.rates.map((r) => { const [t, w] = tone(r.ageHours); return `<div class="row"><div class="grow"><div class="name">${r.rate === null ? `${money(1, r.currency, false)} = —` : rateLine(r.currency, r.rate, d.against)}</div><div class="meta">${r.fetchedAt ? `fetched ${agoText(r.fetchedAt)}` : "no rate stored"}</div></div><span class="pill ${t}">${esc(w)}</span></div>`; }).join("") : '<p class="muted">Only one currency in use.</p>';
+    return header("Exchange rates", `against ${esc(d.against)} · oldest first`, "", "money") +
+      `<div class="grid g2 tgrid">${card("Rates in use", "", `<div class="rows">${rowsH}</div>`)}${card("Where they come from", "", `${line("Source", esc(d.source || "—"))}${line("Last fetched", d.lastFetched ? esc(agoText(d.lastFetched)) : "—")}${line("Currency pairs used so far", count(d.pairsInUse))}<p class="muted" style="font-size:12px;font-weight:600;margin:10px 0 0">A rate older than a day shows amber, older than three days red. Payments on that pair still go through at the last rate.</p>`)}</div>`;
   }
 
   /* ── Team & roles (0216) ── */
@@ -336,9 +488,9 @@
     if (S.welcome) { root.innerHTML = viewWelcome(); return; }
     let r = route();
     if (!allowed(r)) { r = ROLES[ROLE()].home; }
-    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount };
+    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates };
     const view = live[r] ? live[r]() : viewSoon(r);
-    const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : r;
+    const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : ["country", "pair"].includes(r) ? "countries" : ["books", "settlements", "rates"].includes(r) ? "money" : r;
     const nav = roleNav(), tabsK = roleTabs();
     const deskCount = S.desk ? (["finance", "risk"].includes(realRole()) ? S.desk.counts.passed : S.desk.counts.new) : 0;
     const badge = (k) => (k === "problems" && S.today && S.today.kpis.openProblems.total ? `<span class="count">${S.today.kpis.openProblems.total}</span>` : k === "desk" && deskCount ? `<span class="count">${deskCount}</span>` : "");
@@ -417,6 +569,25 @@
       S.alerts = "on"; toast("Alerts on. New chats and answers reach this device."); render();
     } catch (e) { toast(e.message || "Could not turn alerts on."); }
   }
+  // Countries and Money & books (0219): each screen loads its own figures.
+  async function grab(fn, apply, routeName) {
+    try { apply(await fn()); S.error = ""; } catch (e) { S.error = e.message; }
+    if (route() === routeName) render();
+  }
+  const loadCountries = () => grab(() => window.AdminApi.countries(S.period), (r) => { S.cdata = r; }, "countries");
+  const loadCountry = () => { const iso = S.iso, p = S.period; return grab(() => window.AdminApi.country(iso, p), (r) => { if (iso === S.iso) S.country = { ...r, period: p }; }, "country"); };
+  const loadPair = () => { const a = S.pairA, b = S.pairB, p = S.period; return grab(() => window.AdminApi.pair(a, b, p), (r) => { S.pairData = { ...r, key: `${a}/${b}`, periodAsked: p }; }, "pair"); };
+  const loadMoney = () => grab(() => window.AdminApi.money(S.period, S.moneyCcy), (r) => { S.mdata = r; }, "money");
+  const loadBooks = () => { const c = S.booksCcy; return grab(() => window.AdminApi.books(c), (r) => { if (c === S.booksCcy) S.books = r; }, "books"); };
+  const loadSettlements = () => grab(() => window.AdminApi.settlements(S.setlTab), (r) => { S.setl = r; }, "settlements");
+  const loadRates = () => grab(() => window.AdminApi.rates(), (r) => { S.rates = r; }, "rates");
+  async function setAside() {
+    const b = S.books; if (!b || !S.aside) return;
+    S.aside.busy = true; render();
+    try { const r = await window.AdminApi.setAside(b.currency, S.aside.reason.trim(), b.difference); S.books = r.books; S.aside = null; S.mdata = null; toast(`${b.currency}: set aside. Only a new gap shows red now.`); }
+    catch (e) { toast(e.message); if (S.aside) S.aside.busy = false; if (e.code === "moved") loadBooks(); }
+    render();
+  }
   async function loadTeam() {
     try { S.team = await window.AdminApi.team(); } catch (e) { S.team = { team: [] }; toast(e.message); }
     if (route() === "team") render();
@@ -436,6 +607,13 @@
     if (r === "ticket") { if (!S.ticket || S.ticket.id !== S.ticketId) { S.ticket = null; S.draft = ""; S.passing = null; S.passNote = ""; } loadTicket(); }
     if (r === "team") { S.confirmRemove = null; loadTeam(); }
     if (r === "account") { if (!S.account || S.account.symbolId !== S.accountId) S.account = null; loadAccount(); }
+    if (r === "countries") loadCountries();
+    if (r === "country") loadCountry();
+    if (r === "pair") loadPair();
+    if (r === "money") loadMoney();
+    if (r === "books") { if (!S.aside || S.aside.ccy !== S.booksCcy) S.aside = null; loadBooks(); }
+    if (r === "settlements") loadSettlements();
+    if (r === "rates") loadRates();
     if (S.alerts === "unknown") checkAlerts().then(render);
   }
   window.addEventListener("hashchange", onRoute);
@@ -477,7 +655,7 @@
   function done(r) {
     window.AdminApi.save({ token: r.token, expiresAt: r.expiresAt, admin: r.admin });
     S.busy = false; S.pre = null; S.preRole = null; S.setupCode = ""; S.stage = "id"; S.error = ""; S.viewAs = null;
-    S.welcome = true; render();
+    S.welcome = true; render(); refreshMe();
     toast(`Signed in until ${clock(r.expiresAt)}`);
   }
 
@@ -531,6 +709,13 @@
     if (t.matches("[data-desk-refresh]")) { loadDesk(); toast("Refreshing"); return; }
     if (t.dataset.account) { location.hash = `account/${encodeURIComponent(t.dataset.account)}`; return; }
     if (t.matches("[data-alerts]")) { toggleAlerts(); return; }
+    if (t.dataset.period) { S.period = t.dataset.period; render(); const r = route(); ({ countries: loadCountries, country: loadCountry, pair: loadPair, money: loadMoney })[r]?.(); return; }
+    if (t.dataset.moneyccy) { S.moneyCcy = t.dataset.moneyccy; S.mdata = null; render(); loadMoney(); return; }
+    if (t.dataset.setl) { S.setlTab = t.dataset.setl; S.setl = null; render(); loadSettlements(); return; }
+    if (t.dataset.aside) { S.aside = { ccy: t.dataset.aside, reason: "", busy: false }; render(); const ta = $("#aside-reason"); if (ta) ta.focus(); return; }
+    if (t.matches("[data-aside-cancel]")) { S.aside = null; render(); return; }
+    if (t.matches("[data-aside-confirm]")) { if ((S.aside?.reason || "").trim().length < 10) { toast("Write why this gap is explained (at least a sentence)."); return; } setAside(); return; }
+    if (t.matches("[data-lens]")) { setLens(lens === "geu" ? "local" : "geu"); render(); return; }
     if (t.dataset.ticket) { location.hash = `ticket/${encodeURIComponent(t.dataset.ticket)}`; return; }
     if (t.dataset.quick) { S.draft = S.draft ? `${S.draft} ${t.dataset.quick}` : t.dataset.quick; S.focusReply = true; render(); const ta = $("#reply"); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
     if (t.matches("[data-send]")) { sendReply(false); return; }
@@ -553,12 +738,13 @@
     if (t.matches("[data-more]")) { S.more = true; render(); return; }
     if (t.matches("[data-refresh]")) { loadToday(); toast("Refreshing"); return; }
     if (t.matches("[data-theme-toggle]")) { const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark"); return; }
-    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
+    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
   });
   document.addEventListener("input", (e) => {
     if (e.target.id === "gid") { S.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); S.focus = "gid"; render(); }
     if (e.target.id === "reply") { S.draft = e.target.value; return; }
     if (e.target.id === "q") { S.q = e.target.value; return; }
+    if (e.target.id === "aside-reason" && S.aside) { S.aside.reason = e.target.value; return; }
     if (e.target.id === "passnote") { S.passNote = e.target.value; return; }
     if (e.target.id === "add-id") { S.add.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); const b = $("[data-add]"); if (b) b.disabled = Array.from(S.add.id).length !== 12; if (e.target.value !== S.add.id) { e.target.value = S.add.id; } return; }
     if (e.target.id === "setup") { S.setupCode = e.target.value; S.focus = "setup"; const b = $("[data-setup]"); if (b) b.disabled = !S.setupCode; }

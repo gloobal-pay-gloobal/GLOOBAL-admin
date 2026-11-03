@@ -506,3 +506,64 @@ tr:last-child td { border-bottom: none; }
 .alerts-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 .alerts-btn.is-on { background: var(--good-soft); color: var(--good); }
 .alerts-btn[disabled] { cursor: default; opacity: 0.75; }
+
+/* ── 0219: GEU on every figure, Countries, Money & books ── */
+/* The other name is smaller, not fainter (the app's rule). */
+.money .geu { font-size: 0.75em; font-weight: inherit; color: inherit; opacity: 1; margin-left: 5px; }
+.unit-btn b { color: var(--ink-faint); font-weight: 900; }
+.unit-btn b.on { color: var(--accent); }
+.chiprow { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+.chiprow button { border: none; border-radius: 999px; padding: 8px 13px; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--ink-soft); cursor: pointer; }
+.chiprow button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.chiprow button b { font-size: 11px; opacity: .75; }
+.chiprow.small { margin: 8px 0 4px; }
+.chiprow.small button { padding: 5px 10px; font-size: 11.5px; }
+.ctiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.ctile { display: flex; flex-direction: column; gap: 7px; text-align: left; border: none; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); padding: 13px 14px; font: inherit; color: var(--ink); cursor: pointer; min-width: 0; }
+.ctile:hover { outline: 1.5px solid var(--line); }
+.ctile .nm { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13.5px; min-width: 0; }
+.ctile .big { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctile .mini { font-size: 11px; font-weight: 700; color: var(--ink-faint); }
+.iso { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-deep); font-size: 10.5px; font-weight: 900; letter-spacing: .3px; flex-shrink: 0; }
+.sbar { height: 8px; border-radius: 5px; background: var(--surface-alt); display: flex; gap: 2px; overflow: hidden; }
+.sbar i { display: block; height: 100%; border-radius: 3px; }
+.keyrow { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); margin: 10px 2px 14px; }
+.keyrow i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.pbar { display: flex; gap: 2px; height: 7px; margin: 5px 0 3px; max-width: 220px; }
+.pbar i { display: block; height: 100%; border-radius: 3px; }
+.wallet .eb { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; opacity: .8; }
+.wallet .wbig { font-size: 30px; font-weight: 800; margin: 4px 0 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.wallet .sbar { background: rgba(255,255,255,.18); }
+.wallet .wlines { margin-top: 8px; }
+.wallet .line { border-top-color: rgba(255,255,255,.16); }
+.wallet .line span { color: rgba(255,255,255,.8); }
+.wallet .line b { color: #fff; }
+.wallet .money .geu { color: inherit; }
+.tgrid > div { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.tgrid > div > .card, .tgrid > div > .wallet { margin: 0; }
+.vs { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); font-size: 13px; margin-top: 8px; }
+.vs > div { padding: 9px 0; border-top: 1px solid var(--line); text-align: right; font-weight: 800; min-width: 0; overflow-wrap: anywhere; }
+.vs > div.vk { text-align: left; color: var(--ink-soft); font-weight: 600; }
+.vs > div.vh, .vs > div:first-child { border-top: none; display: flex; justify-content: flex-end; align-items: center; gap: 5px; font-weight: 800; }
+.duo { display: flex; align-items: flex-end; gap: 8px; height: 110px; border-bottom: 1px solid var(--line); margin-top: 12px; }
+.duo > div { flex: 1; display: flex; gap: 2px; align-items: flex-end; height: 100%; }
+.duo i { flex: 1; display: block; border-radius: 3px 3px 0 0; min-height: 1px; }
+.duo-days { display: flex; gap: 8px; font-size: 10.5px; font-weight: 700; color: var(--ink-faint); margin-top: 4px; }
+.duo-days span { flex: 1; text-align: center; }
+.wf { display: grid; grid-template-columns: minmax(110px, auto) minmax(40px, 1fr) auto; align-items: center; gap: 8px 10px; font-size: 13px; margin-top: 6px; }
+.wf > span { font-weight: 600; color: var(--ink-soft); }
+.wf > b { text-align: right; font-weight: 800; white-space: nowrap; }
+.wf .trk { height: 10px; background: var(--surface-alt); border-radius: 5px; position: relative; overflow: hidden; }
+.wf .trk i { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+.hist { display: flex; gap: 6px; margin-top: 10px; }
+.hist i { flex: 1; height: 24px; border-radius: 7px; display: block; background: var(--surface-alt); }
+.hist i.ok { background: var(--good-soft); } .hist i.off { background: var(--bad-soft); }
+.square { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 14px; }
+.square .wbig { font-weight: 800; }
+@media (max-width: 760px) {
+  .ctiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ctile .big { font-size: 18px; }
+  .wf { grid-template-columns: minmax(96px, auto) minmax(30px, 1fr) auto; font-size: 12.5px; }
+}
+.card h3 + .line { border-top: none; }
+.card h3 + .line, .card h3 + .rows, .card h3 + .wf, .card h3 + .vs { margin-top: 6px; }

@@ -16,7 +16,13 @@ desk. Plain files — no build step, no npm install. It installs like an app
   passed to you. Alerts need the server's VAPID keys, which the app's own
   notifications already use.
 
-The other screens show what is coming in parts 4–5.
+- **Part 4 (patch 0219):** **Countries** (Admin, Finance, Risk) and **Money &
+  books** (Admin, Finance), live. **GEU on every figure**, with a Local · GEU
+  switch on every screen: `18.4L₹ │ GEU` or `18.4L GEU │ ₹`, other
+  currencies by their code (`$4.1K │ USD`). Admin can **set a books gap
+  aside** with a reason, from Books for a currency.
+
+The other screens show what is coming in part 5.
 
 ## Roles
 
