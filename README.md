@@ -22,7 +22,13 @@ desk. Plain files — no build step, no npm install. It installs like an app
   currencies by their code (`$4.1K │ USD`). Admin can **set a books gap
   aside** with a reason, from Books for a currency.
 
-The other screens show what is coming in part 5.
+- **Part 5 (patch 0220):** **Problems** — escalated complaints and GLOOBAL
+  Bank cases in one queue, answered as GLOOBAL; **sending money back** with
+  two people (one proposes, a different one on Finance or the founder
+  approves); **holds** on an account from Look up (Risk and the founder):
+  pause payments, pause bank payouts, hide a shop page.
+
+Still to come: Growth, Shops, Risk signals, Live feed, Server & deploys, Alerts.
 
 ## Roles
 

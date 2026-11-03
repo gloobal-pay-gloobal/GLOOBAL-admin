@@ -65,6 +65,19 @@
     setAside: (ccy, reason, expected) => call("POST", `/api/admin/books/${encodeURIComponent(ccy)}/set-aside`, { body: { reason, expected } }),
     settlements: (status) => call("GET", `/api/admin/settlements?status=${encodeURIComponent(status)}`),
     rates: () => call("GET", "/api/admin/rates"),
+    // Problems and holds (0220)
+    problems: (tab) => call("GET", `/api/admin/problems?tab=${encodeURIComponent(tab)}`),
+    complaint: (id) => call("GET", `/api/admin/problems/complaint/${encodeURIComponent(id)}`),
+    complaintReply: (id, text) => call("POST", `/api/admin/problems/complaint/${encodeURIComponent(id)}/reply`, { body: { text } }),
+    complaintClose: (id, note) => call("POST", `/api/admin/problems/complaint/${encodeURIComponent(id)}/close`, { body: { note } }),
+    refundPropose: (id, reason) => call("POST", `/api/admin/problems/complaint/${encodeURIComponent(id)}/refund`, { body: { reason } }),
+    refundApprove: (rid) => call("POST", `/api/admin/refunds/${encodeURIComponent(rid)}/approve`, { body: {} }),
+    refundDecline: (rid, reason) => call("POST", `/api/admin/refunds/${encodeURIComponent(rid)}/decline`, { body: { reason } }),
+    transferCase: (ref) => call("GET", `/api/admin/problems/transfer/${encodeURIComponent(ref)}`),
+    transferReply: (ref, text, status) => call("POST", `/api/admin/problems/transfer/${encodeURIComponent(ref)}/reply`, { body: { text, status } }),
+    holds: (symbolId) => call("GET", `/api/admin/holds/${encodeURIComponent(symbolId)}`),
+    holdSet: (symbolId, kind, reason) => call("POST", "/api/admin/holds", { body: { symbolId, kind, reason } }),
+    holdLift: (id, reason) => call("POST", `/api/admin/holds/${encodeURIComponent(id)}/lift`, { body: { reason } }),
     logout: () => call("POST", "/api/admin/logout", { body: {} }).catch(() => null),
   };
 })();

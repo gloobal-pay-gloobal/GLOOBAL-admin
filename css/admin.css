@@ -567,3 +567,9 @@ tr:last-child td { border-bottom: none; }
 }
 .card h3 + .line { border-top: none; }
 .card h3 + .line, .card h3 + .rows, .card h3 + .wf, .card h3 + .vs { margin-top: 6px; }
+
+/* ── 0220: problems and holds ── */
+.bub.payee { align-self: flex-end; background: var(--surface-alt); }
+.bub.us { background: var(--accent-soft); }
+.chat .bub { max-width: 88%; }
+.bub.gl { align-self: stretch; max-width: none; background: var(--accent-soft); }

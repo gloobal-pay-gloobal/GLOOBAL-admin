@@ -85,16 +85,16 @@
   // Part 1 is live; the rest arrive part by part, in this order.
   const NAV = [
     ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", null], ["money", "Money & books", null], ["lookup", "Look up", null],
-    ["growth", "Growth", 4], ["shops", "Shops", 4], ["problems", "Problems", 4], ["risk", "Risk", 4],
+    ["growth", "Growth", 4], ["shops", "Shops", 4], ["problems", "Problems", null], ["risk", "Risk", 4],
     ["live", "Live feed", 5], ["system", "Server & deploys", 5], ["alerts", "Alerts", 5], ["team", "Team & roles", null], ["audit", "Audit log", null],
   ];
   // Each role lands on its own desk and sees only its own menu. The server
   // enforces the same fence on every call; this only keeps the menu honest.
   const ROLES = {
     admin: { name: "Admin", tone: "var(--accent)", home: "today", what: "Everything, every country, every action. Decides who is on the team.", nav: NAV.map((n) => n[0]) },
-    support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "lookup", "problems", "live"] },
-    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "money", "countries", "lookup", "problems"] },
-    risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "countries", "lookup", "risk", "live", "problems"] },
+    support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "problems", "lookup", "live"] },
+    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "problems", "money", "countries", "lookup"] },
+    risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "problems", "lookup", "countries", "risk", "live"] },
     tech: { name: "Tech", tone: "#3B6EF5", home: "system", what: "Server, deploys, errors, background jobs. Sees no one's money or numbers.", nav: ["system", "live", "alerts"] },
   };
   const CAN = [
@@ -107,6 +107,10 @@
     ["See Countries", ["admin", "finance", "risk"]],
     ["See Money & books", ["admin", "finance"]],
     ["Set a books gap aside", ["admin"]],
+    ["Answer escalated complaints and bank cases", ["admin", "support", "finance", "risk"]],
+    ["Propose sending money back", ["admin", "support", "finance"]],
+    ["Approve sending money back (not your own proposal)", ["admin", "finance"]],
+    ["Pause payments, bank payouts or a shop page", ["admin", "risk"]],
     ["See server, deploys, errors", ["admin", "tech"]],
     ["Add or remove people on the team", ["admin"]],
     ["Read the audit log", ["admin"]],
@@ -130,14 +134,15 @@
   const roleNav = () => NAV.filter((n) => ROLES[ROLE()].nav.includes(n[0]));
   // Four on the phone's tab bar; "More" always holds the rest, alerts and sign out.
   const roleTabs = () => roleNav().map((n) => n[0]).slice(0, 4);
-  const allowed = (k) => ROLES[ROLE()].nav.includes(k) || (k === "ticket" && ROLES[ROLE()].nav.includes("desk")) || (k === "account" && ROLES[ROLE()].nav.includes("lookup")) || (["country", "pair"].includes(k) && ROLES[ROLE()].nav.includes("countries")) || (["books", "settlements", "rates"].includes(k) && ROLES[ROLE()].nav.includes("money"));
+  const allowed = (k) => ROLES[ROLE()].nav.includes(k) || (k === "ticket" && ROLES[ROLE()].nav.includes("desk")) || (k === "account" && ROLES[ROLE()].nav.includes("lookup")) || (["country", "pair"].includes(k) && ROLES[ROLE()].nav.includes("countries")) || (["books", "settlements", "rates"].includes(k) && ROLES[ROLE()].nav.includes("money")) || (["complaint", "tcase"].includes(k) && ROLES[ROLE()].nav.includes("problems"));
   const rolePill = (r) => `<span class="pill" style="background:color-mix(in srgb, ${ROLES[r].tone} 14%, var(--surface));color:${ROLES[r].tone}">${ROLES[r].name}</span>`;
   const hideMoney = () => ["support", "tech"].includes(ROLE());
 
   const S = { stage: "door", id: "", pin: "", pre: null, preRole: null, setupCode: "", busy: false, error: "", today: null, todayAt: null, audit: null, more: false, loading: false,
     welcome: false, viewAs: null, dtab: null, desk: null, ticketId: null, ticket: null, draft: "", sending: false, passing: null, passNote: "", team: null, add: { id: "", role: "support" }, issued: null, confirmRemove: null,
     q: "", found: null, searching: false, accountId: null, account: null, alerts: "unknown",
-    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null };
+    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null,
+    ptab: "escalated", problems: null, complaintId: null, complaint: null, caseRef: null, tcase: null, pdraft: "", pform: null, holds: null, holdForm: null };
   const route = () => {
     const h = (location.hash || "").slice(1);
     if (h.startsWith("ticket/")) { S.ticketId = decodeURIComponent(h.slice(7)); return "ticket"; }
@@ -146,6 +151,8 @@
     if (h.startsWith("pair/")) { [S.pairA, S.pairB] = h.slice(5).split("/").map(decodeURIComponent); return "pair"; }
     if (h.startsWith("books/")) { S.booksCcy = decodeURIComponent(h.slice(6)); return "books"; }
     if (h === "settlements" || h === "rates") return h;
+    if (h.startsWith("complaint/")) { S.complaintId = decodeURIComponent(h.slice(10)); return "complaint"; }
+    if (h.startsWith("tcase/")) { S.caseRef = decodeURIComponent(h.slice(6)); return "tcase"; }
     return NAV.some((n) => n[0] === h) ? h : ROLES[ROLE()].home;
   };
   const go = (r) => { S.more = false; if (location.hash.slice(1) === r) render(); else location.hash = r; };
@@ -331,9 +338,10 @@
     const list = (items, empty) => items.length ? `<div class="rows">${items.join("")}</div>` : `<p class="muted" style="font-weight:600;font-size:12.5px;margin:6px 0 0">${empty}</p>`;
     const canDesk = allowed("desk");
     return `<div class="top">${back}<h1>${esc(a.shop || a.name || "—")}<span class="sub">${a.shop && a.name ? `${esc(a.name)} · ` : ""}${esc(a.symbolId)}</span></h1>${lensBtn()}</div>` +
-      `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${[["Paid, 30 days", count(a.last30.paid), "payments sent"], ["Received, 30 days", count(a.last30.received), "payments in"], ["Chats with Support", count(a.chats.length), a.chats.filter((c) => c.status !== "done").length ? `${a.chats.filter((c) => c.status !== "done").length} open` : "none open"], ["Complaints", count(a.complaints.length), a.complaints.filter((c) => !["solved"].includes(c.status)).length ? "some open" : "none open"]].map(([l, v, d]) => `<div class="kpi" style="cursor:default"><span class="label">${l}</span><span class="val">${v}</span><span class="delta muted">${esc(d)}</span></div>`).join("")}</div>` +
+      `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${[["Paid, 30 days", count(a.last30.paid), "payments sent"], ["Received, 30 days", count(a.last30.received), "payments in"], ["Chats with Support", count(a.chats.length), a.chats.filter((c) => c.status !== "done").length ? `${a.chats.filter((c) => c.status !== "done").length} open` : "none open"], ["Complaints", count(a.complaints.length), a.complaints.filter((c) => !["solved", "returned"].includes(c.status)).length ? "some open" : "none open"]].map(([l, v, d]) => `<div class="kpi" style="cursor:default"><span class="label">${l}</span><span class="val">${v}</span><span class="delta muted">${esc(d)}</span></div>`).join("")}</div>` +
       `<div class="grid g2 tgrid">` +
       `<section class="card airy"><h3>Who they are<span class="muted">${a.shop ? "creator" : "person"}</span></h3>${line("Country", esc(a.country || "—"))}${line("With GLOOBAL since", esc(new Date(a.since).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })))}${line("Phone", phone)}${line("Balance", balance)}${a.owner ? line("A shop of", `<button type="button" class="linkbtn" data-account="${esc(a.owner.symbolId)}" style="padding:0">${esc(a.owner.name)}</button>`) : ""}${a.referredBy ? line("Joined with", `<button type="button" class="linkbtn" data-account="${esc(a.referredBy.symbolId)}" style="padding:0">${esc(a.referredBy.name)}</button>`) : ""}${a.shops.length ? `<div class="eyebrow" style="margin-top:14px">Their shops</div><div class="chips" style="margin-top:6px">${a.shops.map((s) => `<button type="button" class="chip" data-account="${esc(s.symbolId)}">${esc(s.name)}</button>`).join("")}</div>` : ""}${hidden ? `<p class="muted" style="font-size:11.5px;font-weight:600;margin:10px 0 0">Hidden for ${ROLES[ROLE()].name}: the balance and the full phone number.</p>` : ""}</section>` +
+      holdsCard() +
       `<section class="card airy"><h3>Last payments<span class="muted">${a.payments.length}</span></h3>${list(a.payments.map(payRow), "No payments yet.")}</section>` +
       `<section class="card airy"><h3>GLOOBAL Bank</h3>${list(a.bankTransfers.map((t) => `<div class="row"><div class="grow"><div class="name">${t.direction === "in" ? "Added from" : "Sent to"} ${esc(t.method.toUpperCase())}</div><div class="meta">${ago(t.at)}${t.returnReason ? ` · ${esc(t.returnReason)}` : ""}</div></div>${statusPill(t.status)}<div class="amt">${money(t.amount, t.currency, false)}</div></div>`), "No bank transfers.")}</section>` +
       `<section class="card airy"><h3>Chats and complaints</h3>${list([...a.chats.map((c) => `<${canDesk ? `button type="button" data-ticket="${esc(c.id)}"` : "div"} class="row" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit;${canDesk ? "cursor:pointer" : ""}"><div class="grow"><div class="name">Chat ${esc(c.ref)} · ${esc(c.topic)}</div><div class="meta">${ago(c.at)}${c.passedTo ? ` · with ${esc(ROLES[c.passedTo] ? ROLES[c.passedTo].name : c.passedTo)}` : ""}</div></div>${statusPill(c.status)}</${canDesk ? "button" : "div"}>`), ...a.complaints.map((c) => `<div class="row"><div class="grow"><div class="name">Complaint ${esc(c.ref)} · ${esc(String(c.reason).replace(/_/g, " "))}</div><div class="meta">${c.reported ? "they reported it" : "reported against them"} · ${ago(c.at)}</div></div>${statusPill(c.status)}</div>`)], "None.")}</section>` +
@@ -451,6 +459,71 @@
       `<div class="grid g2 tgrid">${card("Rates in use", "", `<div class="rows">${rowsH}</div>`)}${card("Where they come from", "", `${line("Source", esc(d.source || "—"))}${line("Last fetched", d.lastFetched ? esc(agoText(d.lastFetched)) : "—")}${line("Currency pairs used so far", count(d.pairsInUse))}<p class="muted" style="font-size:12px;font-weight:600;margin:10px 0 0">A rate older than a day shows amber, older than three days red. Payments on that pair still go through at the last rate.</p>`)}</div>`;
   }
 
+  /* ── Problems: escalated complaints, bank cases, sending money back (0220) ── */
+  const PTABS = [["escalated", "Escalated complaints"], ["transfers", "Bank cases"], ["refunds", "Waiting approval"], ["done", "Done"]];
+  const HOLD_KINDS = [["sending", "Pause payments", "Can't pay anyone or send to a bank. Can still receive and sign in."], ["payouts", "Pause bank payouts", "Can't send money to an outside bank."], ["shop", "Hide shop page", "Out of search; not found by name or ID, except by its owner."]];
+  const statusPill2 = (st) => ({ escalated: '<span class="pill bad">escalated</span>', open: '<span class="pill warn">open</span>', checking: '<span class="pill warn">checking</span>', proposed: '<span class="pill warn">waiting approval</span>', returned: '<span class="pill good">money back</span>', solved: '<span class="pill good">closed</span>', resolved: '<span class="pill good">solved</span>', done: '<span class="pill good">sent back</span>', declined: '<span class="pill quiet">declined</span>', failed: '<span class="pill bad">failed</span>' }[st] || `<span class="pill quiet">${esc(st)}</span>`);
+  function viewProblems() {
+    const d = S.problems;
+    const refresh = `<button type="button" class="icon-btn" data-prob-refresh aria-label="Refresh">${ICON.refresh}</button>`;
+    if (!d || d.tab !== S.ptab) return header("Problems", "Escalated complaints, bank cases, money going back", refresh) + (S.error ? `<div class="note err">${esc(S.error)}</div>` : `<section class="card"><p class="muted" style="font-weight:700;margin:0">Loading…</p></section>`);
+    const tabs = PTABS.filter(([k]) => k !== "refunds" || ["admin", "finance", "support"].includes(realRole()));
+    const row = (it) => {
+      const go = it.kind === "complaint" || it.kind === "refund" ? `complaint/${it.complaintId || it.id}` : `tcase/${it.ref}`;
+      const tone = it.kind === "transfer" ? ["var(--accent-soft)", "var(--accent)"] : it.kind === "refund" ? ["var(--warn-soft)", "var(--warn)"] : ["var(--bad-soft)", "var(--bad)"];
+      return `<button type="button" class="ticket" data-go="${esc(go)}"><span class="av" style="background:${tone[0]};color:${tone[1]}">${it.kind === "transfer" ? "B" : it.kind === "refund" ? "↩" : "!"}</span><span class="grow"><span class="name">${esc(it.title)}${it.refundWaiting ? ' <span class="muted" style="font-weight:700">· send-back waiting</span>' : ""}</span><span class="meta">${esc(it.who)} · ${esc(it.ref)} · ${ago(it.since)}${it.proposedBy ? ` · proposed by ${esc(it.proposedBy)}` : ""}</span>${it.reason ? `<span class="preview">${esc(it.reason)}</span>` : ""}</span><span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${it.amount ? `<b>${money(it.amount, it.currency, false)}</b>` : ""}${it.late ? '<span class="pill bad">over a day</span>' : statusPill2(it.status)}</span></button>`;
+    };
+    const priv = d.privateOpen.count ? `<div class="note" style="margin-bottom:14px"><b>${plural(d.privateOpen.count, "complaint")} open between people</b> — oldest ${ago(d.privateOpen.oldest)}. A complaint is their private chat; GLOOBAL can read one once the payer escalates it (after 48 hours, in the app).</div>` : "";
+    return header("Problems", "Escalated complaints, bank cases, money going back", refresh) + priv +
+      `<div class="tabs" role="group" aria-label="Which problems">${tabs.map(([k, l]) => `<button type="button" data-ptab="${k}" aria-pressed="${S.ptab === k}">${l}${k !== "done" ? ` <b>${INT.format(d.counts[k] || 0)}</b>` : ""}</button>`).join("")}</div>` +
+      `<section class="card airy">${d.items.map(row).join("") || `<p class="muted" style="font-weight:700;margin:0">${S.ptab === "refunds" ? "Nothing waiting for approval." : "Nothing here."}</p>`}</section>`;
+  }
+  function viewComplaint() {
+    const c = S.complaint;
+    if (!c || c.id !== S.complaintId) return header("Complaint", S.complaintId || "", "", "problems") + (S.error ? `<div class="note err">${esc(S.error)}</div>` : "");
+    const open = c.status === "escalated";
+    const bub = (m) => m.who === "system" ? (/^GLOOBAL Support|^Closed by GLOOBAL/.test(m.text) ? `<div class="bub gl"><p>${esc(m.text)}</p><em>GLOOBAL · ${ago(m.at)}</em></div>` : `<div class="sysline">${esc(m.text)} · ${ago(m.at)}</div>`) : `<div class="bub ${m.who === "payee" ? "payee" : ""}"><p>${esc(m.text)}</p><em>${m.who === "payer" ? esc(c.reporter.name) + " (paid)" : esc(c.receiver.name) + " (was paid)"} · ${ago(m.at)}</em></div>`;
+    const party = (p, who) => { const hs = c.holds.filter((h) => h.on === who); return `<div class="row"><div class="grow"><div class="name">${esc(p.name)}</div><div class="meta">${who === "payer" ? "paid" : "was paid"}${p.balance !== null ? ` · holds ${moneyText(p.balance, c.payment ? (who === "payer" ? c.payment.paid.currency : c.payment.got.currency) : "INR")}` : ""}</div>${hs.map((h) => `<span class="pill bad" style="margin-top:4px">${esc(h.words)}</span>`).join(" ")}</div>${allowed("lookup") ? `<button type="button" class="chip" data-account="${esc(p.symbolId)}">Account ›</button>` : ""}</div>`; };
+    const f = S.pform && S.pform.id === c.id ? S.pform : null;
+    const r = c.refund;
+    const hist = r.history.map((h) => `<div class="row"><div class="grow"><div class="name">${money(h.amount, h.currency, false)} back · proposed by ${esc(h.proposedBy)}${h.mine ? " (you)" : ""}</div><div class="meta">${esc(h.reason)}${h.decidedBy ? ` · ${h.status === "declined" ? "declined" : "approved"} by ${esc(h.decidedBy)}` : ""}${h.declineReason ? `: ${esc(h.declineReason)}` : ""}${h.failure ? ` · ${esc(h.failure)}` : ""}</div>
+      ${h.canDecide ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn" data-approve="${esc(h.id)}" style="flex:1">Approve — send it back</button><button type="button" class="btn quiet" data-decline-open="${esc(h.id)}" style="flex:1">Decline…</button></div>${f && f.kind === "decline" && f.rid === h.id ? `<textarea id="pform-text" placeholder="Why not — the person who proposed it reads this" style="width:100%;min-height:56px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:8px">${esc(f.text)}</textarea><button type="button" class="btn quiet" data-decline="${esc(h.id)}" style="width:100%;margin-top:6px">Decline it</button>` : ""}` : h.status === "proposed" && h.mine ? '<div class="meta" style="margin-top:4px">Someone on Finance, or the founder, approves it.</div>' : ""}</div>${statusPill2(h.status)}</div>`).join("");
+    const canPropose = ["admin", "support", "finance"].includes(realRole());
+    const refundCard = card("Send the money back", r.possible ? money(r.amount, r.currency, false) : "", `${hist ? `<div class="rows">${hist}</div>` : ""}${r.possible && canPropose ? (f && f.kind === "refund" ? `<textarea id="pform-text" placeholder="Why it should go back — the approver reads this" style="width:100%;min-height:64px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:10px">${esc(f.text)}</textarea><button type="button" class="btn" data-refund-send style="width:100%;margin-top:8px">Propose sending ${moneyText(r.amount, r.currency, false)} back</button>` : `<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">From ${esc(c.receiver.name)} back to ${esc(c.reporter.name)}: what they actually got. A second person on Finance, or the founder, approves it before anything moves.</p><button type="button" class="btn quiet" data-refund-open style="width:100%;margin-top:10px">Propose sending it back…</button>`) : r.why ? `<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">${esc(r.why)}</p>` : ""}`);
+    const p = c.payment;
+    return header(`${esc(c.reason)}`, `${esc(c.ref)} · raised ${ago(c.createdAt)}${c.escalatedAt ? ` · escalated ${ago(c.escalatedAt)}` : ""}`, statusPill2(c.status), "problems") +
+      `<div class="grid g2 tgrid"><div><section class="card airy chat" aria-label="The complaint">${c.messages.map(bub).join("")}
+        ${open ? `<label class="eyebrow" for="pdraft" style="margin-top:10px">Write to both of them, as GLOOBAL</label><textarea id="pdraft" maxlength="480" placeholder="Both of them see this in the complaint, with a notice" style="width:100%;min-height:72px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);padding:10px 12px;font:inherit;color:var(--ink)">${esc(S.pdraft)}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn" data-preply style="flex:2">Send</button><button type="button" class="btn quiet" data-close-open style="flex:1">Close it…</button></div>
+        ${f && f.kind === "close" ? `<textarea id="pform-text" placeholder="How it was settled — both of them read this" style="width:100%;min-height:56px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:8px">${esc(f.text)}</textarea><button type="button" class="btn quiet" data-close style="width:100%;margin-top:6px">Close the complaint</button>` : ""}` : '<p class="muted" style="font-weight:700;margin:8px 0 0">Closed.</p>'}</section></div><div>` +
+      card("The payment", p ? esc(new Date(p.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })) : "", p ? `${line("Paid", money(p.paid.amount, p.paid.currency, false))}${line("They got", money(p.got.amount, p.got.currency, false))}${line("Reference", `<span style="font-size:11px">${esc(p.referenceId)}</span>`)}${c.note ? line("Their note", esc(c.note)) : ""}` : '<p class="muted">Missing.</p>') +
+      card("Both sides", "", `<div class="rows">${party(c.reporter, "payer")}${party(c.receiver, "payee")}</div>`) + refundCard + `</div></div>`;
+  }
+  function viewCase() {
+    const c = S.tcase;
+    if (!c || c.ref !== S.caseRef) return header("Bank case", S.caseRef || "", "", "problems") + (S.error ? `<div class="note err">${esc(S.error)}</div>` : "");
+    const t = c.transfer;
+    const bub = (m) => `<div class="bub ${m.who === "gloobal" ? "us" : ""}"><p>${esc(m.text)}</p><em>${m.who === "gloobal" ? "GLOOBAL" : esc(c.person ? c.person.name : "They")} · ${ago(m.at)}</em></div>`;
+    return header(`Bank: ${esc(c.reason)}`, `${esc(c.ref)} · opened ${ago(c.createdAt)}`, statusPill2(c.status), "problems") +
+      `<div class="grid g2 tgrid"><div><section class="card airy chat">${c.messages.map(bub).join("")}
+        <label class="eyebrow" for="pdraft" style="margin-top:10px">Answer as GLOOBAL</label><textarea id="pdraft" maxlength="600" placeholder="They see this on the transfer, with a notice" style="width:100%;min-height:72px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);padding:10px 12px;font:inherit;color:var(--ink)">${esc(S.pdraft)}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn" data-creply="checking" style="flex:2">Send</button><button type="button" class="btn quiet" data-creply="resolved" style="flex:1">Send &amp; mark solved</button></div></section></div><div>` +
+      card("The transfer", t ? statusPill(t.status) : "", t ? `${line(t.direction === "in" ? "Added from" : "Sent to", esc(String(t.method).toUpperCase()))}${line("Amount", money(t.amount, t.currency, false))}${line("When", esc(new Date(t.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })))}${t.returnReason ? line("Came back because", esc(t.returnReason)) : ""}${line("Reference", `<span style="font-size:11px">${esc(t.referenceId)}</span>`)}` : '<p class="muted">Missing.</p>') +
+      (c.person ? card(esc(c.person.name), "", `${c.person.balance !== null ? line("Balance", money(c.person.balance, t ? t.currency : "INR")) : ""}${allowed("lookup") ? `<button type="button" class="btn quiet" data-account="${esc(c.person.symbolId)}" style="width:100%;margin-top:10px">Open their account</button>` : ""}`) : "") + `</div></div>`;
+  }
+  // Holds, on an account (Look up).
+  function holdsCard() {
+    const h = S.holds;
+    if (!h) return card("Holds", "", '<p class="muted" style="font-weight:600;margin:6px 0 0">Loading…</p>');
+    const active = h.holds.filter((x) => x.active), past = h.holds.filter((x) => !x.active).slice(0, 4);
+    const f = S.holdForm;
+    const activeRows = active.map((x) => `<div class="row"><div class="grow"><div class="name">${esc(x.words)}</div><div class="meta">${esc(x.reason)} · by ${esc(x.setBy)} · ${ago(x.at)}</div>${h.canHold ? (f && f.lift === x.id ? `<textarea id="hold-text" placeholder="Why it can be lifted" style="width:100%;min-height:50px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:8px">${esc(f.text)}</textarea><button type="button" class="btn quiet" data-hold-lift="${esc(x.id)}" style="width:100%;margin-top:6px">Lift it</button>` : `<button type="button" class="chip" data-hold-lift-open="${esc(x.id)}" style="margin-top:6px">Lift…</button>`) : ""}</div><span class="pill bad">on</span></div>`).join("");
+    const pastRows = past.map((x) => `<div class="row"><div class="grow"><div class="name" style="color:var(--ink-soft)">${esc(x.words)}</div><div class="meta">lifted by ${esc(x.liftedBy)} ${ago(x.liftedAt)}: ${esc(x.liftReason)}</div></div><span class="pill quiet">lifted</span></div>`).join("");
+    const free = HOLD_KINDS.filter(([k]) => !active.some((x) => x.kind === k));
+    const form = h.canHold && free.length ? (f && f.kind ? `<div class="eyebrow" style="margin-top:12px">${esc(HOLD_KINDS.find((k) => k[0] === f.kind)[1])}</div><p class="muted" style="font-size:12px;font-weight:600;margin:4px 0 0">${esc(HOLD_KINDS.find((k) => k[0] === f.kind)[2])}</p><textarea id="hold-text" placeholder="Why — the team reads this; they don't" style="width:100%;min-height:56px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:8px">${esc(f.text)}</textarea><div style="display:flex;gap:8px;margin-top:6px"><button type="button" class="btn" data-hold-set style="flex:1;background:var(--bad)">Put it on</button><button type="button" class="btn quiet" data-hold-cancel style="flex:1">Cancel</button></div>` : `<div class="chips" style="margin-top:12px">${free.map(([k, l]) => `<button type="button" class="chip" data-hold-kind="${k}">${esc(l)}…</button>`).join("")}</div>`) : "";
+    return card("Holds", active.length ? `${active.length} on` : "none on", `${activeRows || '<p class="muted" style="font-weight:600;margin:6px 0 0">Nothing is paused on this account.</p>'}${pastRows ? `<div class="rows" style="margin-top:6px">${pastRows}</div>` : ""}${form}`);
+  }
+
   /* ── Team & roles (0216) ── */
   function viewTeam() {
     const t = S.team;
@@ -488,12 +561,14 @@
     if (S.welcome) { root.innerHTML = viewWelcome(); return; }
     let r = route();
     if (!allowed(r)) { r = ROLES[ROLE()].home; }
-    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates };
+    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase };
     const view = live[r] ? live[r]() : viewSoon(r);
-    const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : ["country", "pair"].includes(r) ? "countries" : ["books", "settlements", "rates"].includes(r) ? "money" : r;
+    const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : ["country", "pair"].includes(r) ? "countries" : ["books", "settlements", "rates"].includes(r) ? "money" : ["complaint", "tcase"].includes(r) ? "problems" : r;
     const nav = roleNav(), tabsK = roleTabs();
     const deskCount = S.desk ? (["finance", "risk"].includes(realRole()) ? S.desk.counts.passed : S.desk.counts.new) : 0;
-    const badge = (k) => (k === "problems" && S.today && S.today.kpis.openProblems.total ? `<span class="count">${S.today.kpis.openProblems.total}</span>` : k === "desk" && deskCount ? `<span class="count">${deskCount}</span>` : "");
+    const pc = S.problems ? S.problems.counts : null;
+    const probCount = pc ? pc.escalated + pc.transfers + (["admin", "finance"].includes(realRole()) ? pc.refunds : 0) : 0;
+    const badge = (k) => (k === "problems" && probCount ? `<span class="count">${probCount}</span>` : k === "desk" && deskCount ? `<span class="count">${deskCount}</span>` : "");
     const viewAs = realRole() === "admin" ? `<div class="viewas">View as ${Object.keys(ROLES).map((k) => `<button type="button" class="chip" data-viewas="${k}" aria-pressed="${ROLE() === k}">${ROLES[k].name}</button>`).join("")}</div>` : "";
     const more = nav.filter(([k]) => !tabsK.includes(k));
     // Keep the textarea's caret and the page's scroll across a re-render.
@@ -588,6 +663,18 @@
     catch (e) { toast(e.message); if (S.aside) S.aside.busy = false; if (e.code === "moved") loadBooks(); }
     render();
   }
+  const loadProblems = (quiet) => grab(() => window.AdminApi.problems(S.ptab), (r) => { S.problems = r; }, "problems");
+  const loadComplaint = () => { const id = S.complaintId; return grab(() => window.AdminApi.complaint(id), (r) => { if (id === S.complaintId) S.complaint = r.complaint; }, "complaint"); };
+  const loadCase = () => { const ref = S.caseRef; return grab(() => window.AdminApi.transferCase(ref), (r) => { if (ref === S.caseRef) S.tcase = r.case; }, "tcase"); };
+  async function loadHolds() { const id = S.accountId; try { const r = await window.AdminApi.holds(id); if (id === S.accountId) S.holds = r; } catch (e) { S.holds = { holds: [], canHold: false }; } if (route() === "account") render(); }
+  // One action, then the screen it changed: a toast with what happened.
+  async function act(fn, ok, after) {
+    if (S.acting) return; S.acting = true;
+    try { const r = await fn(); toast(ok); if (after) after(r); S.pform = null; S.pdraft = ""; }
+    catch (e) { toast(e.message); }
+    finally { S.acting = false; render(); }
+  }
+  const formText = () => ((S.pform && S.pform.text) || "").trim();
   async function loadTeam() {
     try { S.team = await window.AdminApi.team(); } catch (e) { S.team = { team: [] }; toast(e.message); }
     if (route() === "team") render();
@@ -614,6 +701,11 @@
     if (r === "books") { if (!S.aside || S.aside.ccy !== S.booksCcy) S.aside = null; loadBooks(); }
     if (r === "settlements") loadSettlements();
     if (r === "rates") loadRates();
+    if (r === "problems") loadProblems();
+    if (r === "complaint") { if (!S.complaint || S.complaint.id !== S.complaintId) { S.complaint = null; S.pform = null; S.pdraft = ""; } loadComplaint(); }
+    if (r === "tcase") { if (!S.tcase || S.tcase.ref !== S.caseRef) { S.tcase = null; S.pdraft = ""; } loadCase(); }
+    if (r === "account") { if (!S.holds || S.holdsFor !== S.accountId) { S.holds = null; S.holdForm = null; S.holdsFor = S.accountId; } loadHolds(); }
+    if (window.AdminApi.session() && !S.problems && allowed("problems") && r !== "problems") window.AdminApi.problems("escalated").then((x) => { S.problems = x; render(); }).catch(() => {});
     if (S.alerts === "unknown") checkAlerts().then(render);
   }
   window.addEventListener("hashchange", onRoute);
@@ -709,6 +801,24 @@
     if (t.matches("[data-desk-refresh]")) { loadDesk(); toast("Refreshing"); return; }
     if (t.dataset.account) { location.hash = `account/${encodeURIComponent(t.dataset.account)}`; return; }
     if (t.matches("[data-alerts]")) { toggleAlerts(); return; }
+    // Problems (0220)
+    if (t.dataset.ptab) { S.ptab = t.dataset.ptab; S.problems = S.problems && { ...S.problems, tab: null }; render(); loadProblems(); return; }
+    if (t.matches("[data-prob-refresh]")) { loadProblems(); toast("Refreshing"); return; }
+    if (t.matches("[data-preply]")) { const text = S.pdraft.trim(); if (!text) { toast("Write the message first."); return; } act(() => window.AdminApi.complaintReply(S.complaintId, text), "Sent. Both of them get a notice.", (r) => { S.complaint = r.complaint; }); return; }
+    if (t.matches("[data-close-open]")) { S.pform = { id: S.complaintId, kind: "close", text: "" }; render(); const x = $("#pform-text"); if (x) x.focus(); return; }
+    if (t.matches("[data-close]")) { act(() => window.AdminApi.complaintClose(S.complaintId, formText()), "Closed. Both of them were told.", (r) => { S.complaint = r.complaint; S.problems = null; }); return; }
+    if (t.matches("[data-refund-open]")) { S.pform = { id: S.complaintId, kind: "refund", text: "" }; render(); const x = $("#pform-text"); if (x) x.focus(); return; }
+    if (t.matches("[data-refund-send]")) { act(() => window.AdminApi.refundPropose(S.complaintId, formText()), "Proposed. Finance is alerted to approve it.", (r) => { S.complaint = r.complaint; S.problems = null; }); return; }
+    if (t.dataset.approve) { act(() => window.AdminApi.refundApprove(t.dataset.approve), "Sent back. Both of them see it in their history.", (r) => { S.complaint = r.complaint; S.problems = null; }); return; }
+    if (t.dataset.declineOpen) { S.pform = { id: S.complaintId, kind: "decline", rid: t.dataset.declineOpen, text: "" }; render(); const x = $("#pform-text"); if (x) x.focus(); return; }
+    if (t.dataset.decline) { act(() => window.AdminApi.refundDecline(t.dataset.decline, formText()), "Declined.", (r) => { if (r.complaint) S.complaint = r.complaint; S.problems = null; }); return; }
+    if (t.dataset.creply) { const text = S.pdraft.trim(); if (!text) { toast("Write the answer first."); return; } act(() => window.AdminApi.transferReply(S.caseRef, text, t.dataset.creply), t.dataset.creply === "resolved" ? "Sent and marked solved." : "Sent. They get a notice.", (r) => { S.tcase = r.case; S.problems = null; }); return; }
+    // Holds (0220)
+    if (t.dataset.holdKind) { S.holdForm = { kind: t.dataset.holdKind, text: "" }; render(); const x = $("#hold-text"); if (x) x.focus(); return; }
+    if (t.matches("[data-hold-cancel]")) { S.holdForm = null; render(); return; }
+    if (t.matches("[data-hold-set]")) { const f = S.holdForm; act(() => window.AdminApi.holdSet(S.accountId, f.kind, (f.text || "").trim()), "On. The server refuses it from now on.", () => { S.holdForm = null; loadHolds(); }); return; }
+    if (t.dataset.holdLiftOpen) { S.holdForm = { lift: t.dataset.holdLiftOpen, text: "" }; render(); const x = $("#hold-text"); if (x) x.focus(); return; }
+    if (t.dataset.holdLift) { const f = S.holdForm; act(() => window.AdminApi.holdLift(t.dataset.holdLift, (f && f.text || "").trim()), "Lifted.", () => { S.holdForm = null; loadHolds(); }); return; }
     if (t.dataset.period) { S.period = t.dataset.period; render(); const r = route(); ({ countries: loadCountries, country: loadCountry, pair: loadPair, money: loadMoney })[r]?.(); return; }
     if (t.dataset.moneyccy) { S.moneyCcy = t.dataset.moneyccy; S.mdata = null; render(); loadMoney(); return; }
     if (t.dataset.setl) { S.setlTab = t.dataset.setl; S.setl = null; render(); loadSettlements(); return; }
@@ -738,13 +848,16 @@
     if (t.matches("[data-more]")) { S.more = true; render(); return; }
     if (t.matches("[data-refresh]")) { loadToday(); toast("Refreshing"); return; }
     if (t.matches("[data-theme-toggle]")) { const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark"); return; }
-    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
+    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.problems = null; S.complaint = null; S.tcase = null; S.holds = null; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
   });
   document.addEventListener("input", (e) => {
     if (e.target.id === "gid") { S.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); S.focus = "gid"; render(); }
     if (e.target.id === "reply") { S.draft = e.target.value; return; }
     if (e.target.id === "q") { S.q = e.target.value; return; }
     if (e.target.id === "aside-reason" && S.aside) { S.aside.reason = e.target.value; return; }
+    if (e.target.id === "pdraft") { S.pdraft = e.target.value; return; }
+    if (e.target.id === "pform-text" && S.pform) { S.pform.text = e.target.value; return; }
+    if (e.target.id === "hold-text" && S.holdForm) { S.holdForm.text = e.target.value; return; }
     if (e.target.id === "passnote") { S.passNote = e.target.value; return; }
     if (e.target.id === "add-id") { S.add.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); const b = $("[data-add]"); if (b) b.disabled = Array.from(S.add.id).length !== 12; if (e.target.value !== S.add.id) { e.target.value = S.add.id; } return; }
     if (e.target.id === "setup") { S.setupCode = e.target.value; S.focus = "setup"; const b = $("[data-setup]"); if (b) b.disabled = !S.setupCode; }
