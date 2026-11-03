@@ -85,16 +85,16 @@
   // Part 1 is live; the rest arrive part by part, in this order.
   const NAV = [
     ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", null], ["money", "Money & books", null], ["lookup", "Look up", null],
-    ["growth", "Growth", 4], ["shops", "Shops", 4], ["problems", "Problems", null], ["risk", "Risk", 4],
-    ["live", "Live feed", 5], ["system", "Server & deploys", 5], ["alerts", "Alerts", 5], ["team", "Team & roles", null], ["audit", "Audit log", null],
+    ["growth", "Growth", null], ["shops", "Shops", null], ["problems", "Problems", null], ["risk", "Risk", null],
+    ["live", "Live feed", null], ["system", "Server & deploys", null], ["alerts", "Alerts", null], ["team", "Team & roles", null], ["audit", "Audit log", null],
   ];
   // Each role lands on its own desk and sees only its own menu. The server
   // enforces the same fence on every call; this only keeps the menu honest.
   const ROLES = {
     admin: { name: "Admin", tone: "var(--accent)", home: "today", what: "Everything, every country, every action. Decides who is on the team.", nav: NAV.map((n) => n[0]) },
-    support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "problems", "lookup", "live"] },
-    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "problems", "money", "countries", "lookup"] },
-    risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "problems", "lookup", "countries", "risk", "live"] },
+    support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "problems", "lookup", "shops", "live", "alerts"] },
+    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "problems", "money", "countries", "lookup", "alerts"] },
+    risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "problems", "risk", "lookup", "countries", "shops", "live", "alerts"] },
     tech: { name: "Tech", tone: "#3B6EF5", home: "system", what: "Server, deploys, errors, background jobs. Sees no one's money or numbers.", nav: ["system", "live", "alerts"] },
   };
   const CAN = [
@@ -111,6 +111,13 @@
     ["Propose sending money back", ["admin", "support", "finance"]],
     ["Approve sending money back (not your own proposal)", ["admin", "finance"]],
     ["Pause payments, bank payouts or a shop page", ["admin", "risk"]],
+    ["Pause or cap payments between two countries", ["admin", "finance", "risk"]],
+    ["Refresh exchange rates now", ["admin", "finance"]],
+    ["See Growth", ["admin"]],
+    ["See Shops", ["admin", "support", "risk"]],
+    ["See Risk signals", ["admin", "risk"]],
+    ["See the Live feed", ["admin", "support", "risk", "tech"]],
+    ["Choose your own phone alerts", ["admin", "support", "finance", "risk", "tech"]],
     ["See server, deploys, errors", ["admin", "tech"]],
     ["Add or remove people on the team", ["admin"]],
     ["Read the audit log", ["admin"]],
@@ -141,7 +148,7 @@
   const S = { stage: "door", id: "", pin: "", pre: null, preRole: null, setupCode: "", busy: false, error: "", today: null, todayAt: null, audit: null, more: false, loading: false,
     welcome: false, viewAs: null, dtab: null, desk: null, ticketId: null, ticket: null, draft: "", sending: false, passing: null, passNote: "", team: null, add: { id: "", role: "support" }, issued: null, confirmRemove: null,
     q: "", found: null, searching: false, accountId: null, account: null, alerts: "unknown",
-    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null,
+    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null, corr: null, corrForm: null, sys: null, grow: null, shopsD: null, riskD: null, liveD: null, liveAfter: null, alertsD: null, alertsDraft: null,
     ptab: "escalated", problems: null, complaintId: null, complaint: null, caseRef: null, tcase: null, pdraft: "", pform: null, holds: null, holdForm: null };
   const route = () => {
     const h = (location.hash || "").slice(1);
@@ -411,7 +418,7 @@
         <div class="vk">Amount sent</div><div>${money(A.sentAmount, A.currency)}</div><div>${money(B.sentAmount, B.currency)}</div>
         <div class="vk">Pool for the other</div><div>${pos(A)}</div><div>${pos(B)}</div>
         <div class="vk">Failed</div><div>${count(A.failed)}</div><div>${count(B.failed)}</div></div>`) + `</div><div>` +
-      card("Squaring up", "now", sq) + card("Each day", "last 7 days · payments", chart) + `<p class="muted" style="font-size:12px;font-weight:600;text-align:center">Pausing a pair comes later, with Risk, and will be logged.</p></div></div>`;
+      card("Squaring up", "now", sq) + controlsCard(A, B) + card("Each day", "last 7 days · payments", chart) + `</div></div>`;
   }
 
   function viewMoney() {
@@ -456,7 +463,7 @@
     const tone = (h) => (h === null ? ["bad", "missing"] : h < 24 ? ["good", "fresh"] : h < 72 ? ["warn", `${Math.round(h)} h old`] : ["bad", `${Math.round(h / 24)} days old`]);
     const rowsH = d.rates.length ? d.rates.map((r) => { const [t, w] = tone(r.ageHours); return `<div class="row"><div class="grow"><div class="name">${r.rate === null ? `${money(1, r.currency, false)} = —` : rateLine(r.currency, r.rate, d.against)}</div><div class="meta">${r.fetchedAt ? `fetched ${agoText(r.fetchedAt)}` : "no rate stored"}</div></div><span class="pill ${t}">${esc(w)}</span></div>`; }).join("") : '<p class="muted">Only one currency in use.</p>';
     return header("Exchange rates", `against ${esc(d.against)} · oldest first`, "", "money") +
-      `<div class="grid g2 tgrid">${card("Rates in use", "", `<div class="rows">${rowsH}</div>`)}${card("Where they come from", "", `${line("Source", esc(d.source || "—"))}${line("Last fetched", d.lastFetched ? esc(agoText(d.lastFetched)) : "—")}${line("Currency pairs used so far", count(d.pairsInUse))}<p class="muted" style="font-size:12px;font-weight:600;margin:10px 0 0">A rate older than a day shows amber, older than three days red. Payments on that pair still go through at the last rate.</p>`)}</div>`;
+      `<div class="grid g2 tgrid">${card("Rates in use", "", `<div class="rows">${rowsH}</div>${["admin", "finance"].includes(realRole()) && d.rates.length ? `<button type="button" class="btn quiet" data-rates-refresh style="width:100%;margin-top:12px" ${S.refreshing ? "disabled" : ""}>${S.refreshing ? "Refreshing…" : "Refresh the old ones now"}</button>` : ""}`)}${card("Where they come from", "", `${line("Source", esc(d.source || "—"))}${line("Last fetched", d.lastFetched ? esc(agoText(d.lastFetched)) : "—")}${line("Currency pairs used so far", count(d.pairsInUse))}<p class="muted" style="font-size:12px;font-weight:600;margin:10px 0 0">A rate older than a day shows amber, older than three days red. Payments on that pair still go through at the last rate.</p>`)}</div>`;
   }
 
   /* ── Problems: escalated complaints, bank cases, sending money back (0220) ── */
@@ -524,6 +531,85 @@
     return card("Holds", active.length ? `${active.length} on` : "none on", `${activeRows || '<p class="muted" style="font-weight:600;margin:6px 0 0">Nothing is paused on this account.</p>'}${pastRows ? `<div class="rows" style="margin-top:6px">${pastRows}</div>` : ""}${form}`);
   }
 
+  /* ── The rest (0221): controls, system, growth, shops, risk, live, alerts ── */
+  const ta = (id, ph, val, h = 56) => `<textarea id="${id}" placeholder="${esc(ph)}" style="width:100%;min-height:${h}px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:8px 10px;font:inherit;color:var(--ink);margin-top:8px">${esc(val || "")}</textarea>`;
+  // Controls between two countries, on Two together.
+  function controlsCard(A, B) {
+    const rules = (S.corr && S.corr.rules || []).filter((r) => r.active && ((r.from === A.iso && r.to === B.iso) || (r.from === B.iso && r.to === A.iso)));
+    const can = ["admin", "finance", "risk"].includes(realRole());
+    const f = S.corrForm && S.corrForm.key === `${A.iso}/${B.iso}` ? S.corrForm : null;
+    const rows = rules.map((r) => `<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="name" style="white-space:normal">${esc(r.fromName)} → ${esc(r.toName)}: ${r.paused ? "paused" : `each payment up to ${moneyText(r.cap, r.capCurrency, false)}`}</div><div class="meta" style="white-space:normal">${esc(r.reason)} · by ${esc(r.setBy)} · ${ago(r.at)}</div></div>${can ? `<button type="button" class="chip" data-corr-lift="${esc(r.id)}">Lift</button>` : ""}<span class="pill ${r.paused ? "bad" : "warn"}">${r.paused ? "paused" : "capped"}</span></div>`).join("");
+    const dir = f ? f.dir : `${A.iso}>${B.iso}`;
+    const [fromIso] = dir.split(">");
+    const fromSide = fromIso === A.iso ? A : B, toSide = fromIso === A.iso ? B : A;
+    const form = !can ? "" : f ? `<div class="chips" style="margin-top:12px">${[[`${A.iso}>${B.iso}`, `${A.name} → ${B.name}`], [`${B.iso}>${A.iso}`, `${B.name} → ${A.name}`]].map(([k, l]) => `<button type="button" class="chip" data-corr-dir="${k}" aria-pressed="${dir === k}">${esc(l)}</button>`).join("")}</div>
+      <div class="chips" style="margin-top:8px"><button type="button" class="chip" data-corr-mode="pause" aria-pressed="${f.mode === "pause"}">Pause</button><button type="button" class="chip" data-corr-mode="cap" aria-pressed="${f.mode === "cap"}">Cap each payment</button></div>
+      ${f.mode === "cap" ? `<label class="eyebrow" for="corr-cap" style="margin-top:10px;display:block">Most per payment, in ${esc(fromSide.currency)} (what ${esc(fromSide.name)} pays)</label><input id="corr-cap" class="id-input" inputmode="decimal" value="${esc(f.cap || "")}" placeholder="e.g. 50000" style="margin-top:6px">` : ""}
+      ${ta("corr-reason", `Why — the team reads this; people paying from ${fromSide.name} are told only that it is ${f.mode === "pause" ? "paused" : "limited"}`, f.reason)}
+      <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn" data-corr-set style="flex:1;${f.mode === "pause" ? "background:var(--bad)" : ""}">${f.mode === "pause" ? `Pause ${esc(fromSide.name)} → ${esc(toSide.name)}` : "Set the cap"}</button><button type="button" class="btn quiet" data-corr-cancel style="flex:1">Cancel</button></div>`
+      : `<button type="button" class="btn quiet" data-corr-open="${esc(A.iso)}/${esc(B.iso)}" style="width:100%;margin-top:12px">Pause or cap a direction…</button>`;
+    return card("Controls", rules.length ? `${rules.length} on` : "none on", `${rows ? `<div class="rows">${rows}</div>` : '<p class="muted" style="font-weight:600;margin:6px 0 0">Payments both ways go through as normal.</p>'}${form}<p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">The server checks these on every payment; the send screen shows the limit before anyone types.</p>`);
+  }
+
+  function viewSystem() {
+    const d = S.sys;
+    const refresh = `<button type="button" class="icon-btn" data-sys-refresh aria-label="Refresh">${ICON.refresh}</button>`;
+    if (!d) return loading("Server & deploys", "What is live, against GitHub");
+    const behindPill = (b) => (b === null || b === undefined ? '<span class="pill quiet">unknown</span>' : b === 0 ? '<span class="pill good">latest</span>' : `<span class="pill warn">${plural(b.count, "commit")} behind</span>`);
+    const commits = (b) => (b && b.commits && b.commits.length ? `<div class="rows" style="margin-top:6px">${b.commits.map((c) => `<div class="row"><div class="grow"><div class="name" style="white-space:normal">${esc(c.message)}</div><div class="meta">${esc(c.sha)} · ${c.at ? ago(c.at) : ""}</div></div><span class="pill quiet">not live</span></div>`).join("")}</div>` : "");
+    const gh = d.github.error ? `<p class="muted" style="font-weight:600">GitHub did not answer: ${esc(d.github.error)}</p>` : `${line("Latest on main", `<span class="num">${esc(d.github.sha)}</span>`)}<p style="margin:6px 0 0;font-weight:700;font-size:13px">${esc(d.github.message)}</p><p class="muted" style="font-size:12px;font-weight:600;margin:2px 0 0">${d.github.at ? ago(d.github.at) : ""} · ${esc(d.repo)}</p>`;
+    const up = (since) => { const h = (Date.now() - new Date(since)) / 3600000; return h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} days`; };
+    return header("Server & deploys", d.cached ? "What is live, against GitHub · a minute ago" : "What is live, against GitHub", refresh) +
+      `<div class="grid g2 tgrid"><div>${card("GitHub", "", gh)}${card("Render — the API", behindPill(d.render.behind), `${line("Running", d.render.commit ? `<span class="num">${esc(d.render.commit)}</span>` : '<span class="muted">not reported</span>')}${line("Up for", esc(up(d.render.startedAt)))}${line("Database answers in", d.render.dbPingMs === null ? '<span class="down">no answer</span>' : `${d.render.dbPingMs} ms`)}${line("Memory", `${d.render.memoryMb} MB`)}${line("Node", esc(d.render.node))}${commits(d.render.behind)}${d.render.behind && d.render.behind.count ? '<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Render → Manual Deploy → Deploy latest commit.</p>' : ""}`)}</div><div>` +
+      card("Netlify — the app", d.netlify.error ? '<span class="pill quiet">unknown</span>' : behindPill(d.netlify.behind), d.netlify.error ? `<p class="muted" style="font-weight:600">${esc(d.netlify.error)}</p>` : `${line("Running", d.netlify.commit ? `<span class="num">${esc(d.netlify.commit)}</span>` : '<span class="muted">a local build</span>')}${line("Built", d.netlify.builtAt ? esc(ago(d.netlify.builtAt)) : "—")}${commits(d.netlify.behind)}${d.netlify.behind && d.netlify.behind.count ? '<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Netlify → Deploys → Trigger deploy → Deploy site.</p>' : ""}`) +
+      card("Background checks", "", `${line("Books checked", d.checks.booksAt ? `${esc(ago(d.checks.booksAt))} · ${d.checks.booksOk ? '<span class="up">add up</span>' : '<span class="down">off</span>'}` : "never")}${line("Rates fetched", d.checks.ratesAt ? esc(ago(d.checks.ratesAt)) : "never")}`) + `</div></div>`;
+  }
+  function viewGrowth() {
+    const d = S.grow;
+    if (!d) return loading("Growth", "Who joins, who keeps paying");
+    const t = d.totals;
+    const labels = [d.days[0].day.slice(5), d.days[14].day.slice(5), d.days[29].day.slice(5)];
+    const chart = columns(d.days.map((x) => x.n), null, labels, `peak ${Math.max(0, ...d.days.map((x) => x.n))}`);
+    const maxF = Math.max(1, d.funnel[0].n);
+    const funnel = d.funnel.map((f, i) => `<div class="row"><div class="grow"><div class="name">${esc(f.step)}</div><div class="pbar" style="max-width:none"><i style="width:${(f.n / maxF) * 100}%;background:var(--accent)"></i></div></div><div class="amt">${INT.format(f.n)}${i ? ` <span class="muted" style="font-weight:700">· ${d.funnel[0].n ? Math.round((f.n / d.funnel[0].n) * 100) : 0}%</span>` : ""}</div></div>`).join("");
+    const coh = d.cohorts.length ? `<div class="table-wrap"><table><thead><tr><th>Joined</th><th class="r">People</th>${Array.from({ length: Math.max(...d.cohorts.map((c) => c.weeks.length)) }, (_, i) => `<th class="r">Week ${i + 1}</th>`).join("")}</tr></thead><tbody>${d.cohorts.map((c) => `<tr><td>${c.weeksAgo === 0 ? "This week" : c.weeksAgo === 1 ? "Last week" : `${c.weeksAgo} weeks ago`}</td><td class="r">${INT.format(c.joined)}</td>${c.weeks.map((p) => `<td class="r"><span class="heat" style="--p:${p}">${p}%</span></td>`).join("")}</tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Of the people who joined that week, how many made a payment in each week after.</p>` : '<p class="muted">No one joined in the last six weeks.</p>';
+    return header("Growth", "Who joins, who keeps paying · last 30 days") +
+      `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${[["Accounts", t.accounts, "people, not shops"], ["Joined", t.joined30, "last 30 days"], ["Paid this week", t.paid7, "people who paid"], ["Paid this month", t.paid30, "people who paid"]].map(([l, v, x]) => `<div class="kpi" style="cursor:default"><span class="label">${l}</span><span class="val">${count(v)}</span><span class="delta muted">${x}</span></div>`).join("")}</div>` +
+      `<div class="grid g2 tgrid"><div>${card("Joined each day", "last 30 days", chart)}${card("Where they stop", "people who joined in 30 days", `<div class="rows">${funnel}</div>`)}</div><div>${card("Who keeps paying", "week by week", coh)}${card("Countries", "joined in 30 days", `<div class="rows">${d.countries.map((c) => `<div class="row"><div class="grow"><div class="name">${isoChip(c.iso)} ${esc(c.name)}</div></div><div class="amt">${INT.format(c.n)}</div></div>`).join("") || '<p class="muted">None.</p>'}</div>`)}${card("Referrals", `${d.referrals.share}% joined with a referral`, `<div class="rows">${d.referrals.top.map((r) => `<button type="button" class="row tap" data-account="${esc(r.symbolId)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><div class="grow"><div class="name">${esc(r.name)}</div></div><div class="amt">${plural(r.n, "person")}</div></button>`).join("") || '<p class="muted" style="font-weight:600;margin:6px 0 0">No referrals in 30 days.</p>'}</div>`)}</div></div>`;
+  }
+  function viewShops() {
+    const d = S.shopsD;
+    if (!d || d.period !== S.period) return loading("Shops", "Every shop, by takings");
+    const rows = d.shops.map((x) => `<button type="button" class="row tap" data-account="${esc(x.symbolId)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit;flex-wrap:wrap"><div class="grow"><div class="name">${esc(x.name)} <span class="muted" style="font-weight:700">· ${esc(x.owner || "")}${x.category ? ` · ${esc(x.category)}` : ""}</span></div><div class="meta">${plural(x.payments, "payment")} · ${plural(x.payers, "payer")}${x.complaints ? ` · ${plural(x.complaints, "complaint")} in 30 days${x.openComplaints ? ` (${x.openComplaints} open)` : ""}` : ""}${x.replyHours !== null ? ` · answers in ${x.replyHours < 1 ? `${Math.round(x.replyHours * 60)} min` : `${x.replyHours} h`}` : ""}</div>${x.hidden || x.holds.length ? `<div style="margin-top:4px">${x.hidden ? '<span class="pill bad">hidden</span> ' : ""}${x.holds.filter((h) => h !== "shop").map((h) => `<span class="pill bad">${h === "sending" ? "payments paused" : "payouts paused"}</span>`).join(" ")}</div>` : ""}</div><div class="amt">${money(x.takings, x.currency)}</div></button>`).join("");
+    return header("Shops", `${plural(d.total, "shop")} · by takings, compared in ${esc(d.viewerCurrency)}`) + periodRow() + card("Takings", PERIODS.find((p) => p[0] === d.period)[1], `<div class="rows">${rows || '<p class="muted" style="font-weight:600;margin:6px 0 0">No shops yet.</p>'}</div>`);
+  }
+  function viewRisk() {
+    const d = S.riskD;
+    if (!d) return loading("Risk", "Signals worth a look");
+    const KIND = { fast_money: "fast money", new_busy: "new and busy", failing: "failing payments", complaints: "complaints", pin: "wrong PINs" };
+    const rows = d.signals.map((x) => `<button type="button" class="row tap" data-account="${esc(x.symbolId)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><span class="score" style="--s:${x.score}">${x.score}</span><div class="grow"><div class="name">${esc(x.name)}${x.holds.length ? ` <span class="pill bad">on hold</span>` : ""}</div>${x.reasons.map((r) => `<div class="meta" style="white-space:normal"><b style="color:var(--ink-soft)">${esc(KIND[r.kind] || r.kind)}</b> — ${esc(r.text)}</div>`).join("")}</div><span class="muted" style="font-weight:800">›</span></button>`).join("");
+    const held = d.onHold.map((h) => `<button type="button" class="row tap" data-account="${esc(h.symbolId)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><div class="grow"><div class="name">${esc(h.name)}</div><div class="meta">${h.kinds.map((k) => ({ sending: "payments paused", payouts: "payouts paused", shop: "shop hidden" }[k])).join(" · ")}</div></div><span class="pill bad">on</span></button>`).join("");
+    return header("Risk", "Signals worth a look · last 24 hours, complaints over 30 days") +
+      `<div class="grid g2 tgrid"><div>${card("Signals", `${d.signals.length} accounts`, `<div class="rows">${rows || '<p class="muted" style="font-weight:600;margin:6px 0 0">Nothing stands out right now.</p>'}</div><p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">A score adds up its reasons, out of 100. Open an account to look closer, or to put it on hold.</p>`)}</div><div>${card("On hold now", `${d.onHold.length}`, `<div class="rows">${held || '<p class="muted" style="font-weight:600;margin:6px 0 0">No holds.</p>'}</div>`)}</div></div>`;
+  }
+  const LIVE_ICON = { pay: ["var(--accent-soft)", "var(--accent)", "↑"], fail: ["var(--bad-soft)", "var(--bad)", "×"], join: ["var(--good-soft)", "var(--good)", "+"], complaint: ["var(--bad-soft)", "var(--bad)", "!"], bank: ["var(--accent-soft)", "var(--accent-2)", "B"], chat: ["var(--good-soft)", "var(--good)", "?"], staff: ["var(--surface-alt)", "var(--ink-soft)", "•"] };
+  function viewLive() {
+    const d = S.liveD;
+    if (!d) return loading("Live feed", "Everything as it happens");
+    const rows = d.events.map((e) => { const [bg, fg, ch] = LIVE_ICON[e.kind] || LIVE_ICON.staff; return `<div class="row${e.fresh ? " fresh" : ""}"><span class="ev" style="background:${bg};color:${fg};font-weight:900">${ch}</span><div class="grow"><div class="name">${esc(e.title)}</div><div class="meta">${clock(e.at)} · ${ago(e.at)}${e.detail ? ` · ${esc(String(e.detail).replace(/_/g, " "))}` : ""}${e.status && !["success", "info"].includes(e.status) ? ` · ${esc(e.status)}` : ""}</div></div>${e.amount !== null && e.amount !== undefined ? `<div class="amt">${money(e.amount, e.currency, false)}</div>` : ""}</div>`; }).join("");
+    return header("Live feed", "Everything as it happens · checks every 10 seconds") + `<section class="card airy"><div class="rows">${rows || '<p class="muted" style="font-weight:600;margin:0">Quiet for the last six hours.</p>'}</div></section>`;
+  }
+  function viewAlerts() {
+    const d = S.alertsD;
+    if (!d) return loading("Alerts", "What reaches your phone");
+    const dr = S.alertsDraft || { on: d.kinds.filter((k) => k.on).map((k) => k.kind), morningAt: d.morningAt };
+    const toggles = d.kinds.map((k) => { const on = dr.on.includes(k.kind); return `<div class="row"><div class="grow"><div class="name" style="white-space:normal">${esc(k.words)}</div>${k.kind === "morning" && on ? `<div style="margin-top:6px;display:flex;align-items:center;gap:8px"><label class="meta" for="alert-at" style="margin:0">at</label><input id="alert-at" type="time" value="${esc(dr.morningAt)}" style="border:1.5px solid var(--line);border-radius:10px;padding:5px 8px;font:inherit;background:var(--surface);color:var(--ink)"></div>` : ""}</div><button type="button" class="switch" role="switch" aria-checked="${on}" data-alert-toggle="${k.kind}" aria-label="${esc(k.words)}"><i></i></button></div>`; }).join("");
+    const recent = d.recent.map((r) => `<a class="row tap" href="${esc(r.url || "/")}" style="color:inherit;text-decoration:none"><div class="grow"><div class="name" style="white-space:normal">${esc(r.title)}</div><div class="meta" style="white-space:normal">${esc(r.body || "")} · ${ago(r.at)}${r.pushed ? " · reached your phone" : ""}</div></div></a>`).join("");
+    const dirty = S.alertsDraft !== null;
+    return header("Alerts", "What reaches your phone") + (d.pushEnabled ? "" : '<div class="note" style="margin-bottom:12px">Alerts are kept here, but the server has no push keys, so nothing reaches phones yet.</div>') +
+      `<div class="grid g2 tgrid"><div>${card("Send me", "", `<div class="rows">${toggles}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn" data-alerts-save style="flex:1" ${dirty ? "" : "disabled"}>Save</button><button type="button" class="btn quiet" data-alerts-test style="flex:1">Send me a test</button></div>${alertsBtn()}${realRole() === "admin" ? '<button type="button" class="btn quiet" data-alerts-check style="width:100%;margin-top:4px">Check everything now</button>' : ""}<p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">Checked every five minutes. Each thing alerts once a day, however long it lasts.</p>`)}</div><div>${card("Sent to you", `${d.recent.length}`, `<div class="rows">${recent || '<p class="muted" style="font-weight:600;margin:6px 0 0">Nothing yet.</p>'}</div>`)}</div></div>`;
+  }
+
   /* ── Team & roles (0216) ── */
   function viewTeam() {
     const t = S.team;
@@ -561,7 +647,7 @@
     if (S.welcome) { root.innerHTML = viewWelcome(); return; }
     let r = route();
     if (!allowed(r)) { r = ROLES[ROLE()].home; }
-    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase };
+    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase, system: viewSystem, growth: viewGrowth, shops: viewShops, risk: viewRisk, live: viewLive, alerts: viewAlerts };
     const view = live[r] ? live[r]() : viewSoon(r);
     const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : ["country", "pair"].includes(r) ? "countries" : ["books", "settlements", "rates"].includes(r) ? "money" : ["complaint", "tcase"].includes(r) ? "problems" : r;
     const nav = roleNav(), tabsK = roleTabs();
@@ -675,6 +761,21 @@
     finally { S.acting = false; render(); }
   }
   const formText = () => ((S.pform && S.pform.text) || "").trim();
+  const loadCorr = () => grab(() => window.AdminApi.corridors(), (r) => { S.corr = r; }, "pair");
+  const loadSys = () => grab(() => window.AdminApi.system(), (r) => { S.sys = r; }, "system");
+  const loadGrowth = () => grab(() => window.AdminApi.growth(), (r) => { S.grow = r; }, "growth");
+  const loadShops = () => { const p = S.period; return grab(() => window.AdminApi.shops(p), (r) => { S.shopsD = r; }, "shops"); };
+  const loadRisk = () => grab(() => window.AdminApi.risk(), (r) => { S.riskD = r; }, "risk");
+  const loadAlerts = () => grab(() => window.AdminApi.alerts(), (r) => { S.alertsD = r; S.alertsDraft = null; }, "alerts");
+  async function loadLive(more) {
+    try {
+      const r = await window.AdminApi.live(more && S.liveD && S.liveD.events[0] ? S.liveD.events[0].at : null);
+      if (more && S.liveD) { const fresh = r.events.map((e) => ({ ...e, fresh: true })); S.liveD = { ...r, events: fresh.concat(S.liveD.events.map((e) => ({ ...e, fresh: false }))).slice(0, 150) }; }
+      else S.liveD = r;
+      S.error = "";
+    } catch (e) { if (!more) S.error = e.message; }
+    if (route() === "live") render();
+  }
   async function loadTeam() {
     try { S.team = await window.AdminApi.team(); } catch (e) { S.team = { team: [] }; toast(e.message); }
     if (route() === "team") render();
@@ -702,6 +803,13 @@
     if (r === "settlements") loadSettlements();
     if (r === "rates") loadRates();
     if (r === "problems") loadProblems();
+    if (r === "pair") loadCorr();
+    if (r === "system") loadSys();
+    if (r === "growth") loadGrowth();
+    if (r === "shops") loadShops();
+    if (r === "risk") loadRisk();
+    if (r === "live") { S.liveD = null; loadLive(false); }
+    if (r === "alerts") loadAlerts();
     if (r === "complaint") { if (!S.complaint || S.complaint.id !== S.complaintId) { S.complaint = null; S.pform = null; S.pdraft = ""; } loadComplaint(); }
     if (r === "tcase") { if (!S.tcase || S.tcase.ref !== S.caseRef) { S.tcase = null; S.pdraft = ""; } loadCase(); }
     if (r === "account") { if (!S.holds || S.holdsFor !== S.accountId) { S.holds = null; S.holdForm = null; S.holdsFor = S.accountId; } loadHolds(); }
@@ -714,6 +822,7 @@
   // The desk looks for new questions every 20 seconds, an open chat for
   // their answer every 10 — never while someone is typing a reply.
   setInterval(() => { if (window.AdminApi.session() && !S.welcome && route() === "desk" && document.visibilityState === "visible") loadDesk(true); }, 20000);
+  setInterval(() => { if (window.AdminApi.session() && !S.welcome && route() === "live" && document.visibilityState === "visible" && S.liveD) loadLive(true); }, 10000);
   setInterval(() => { const a = document.activeElement; if (window.AdminApi.session() && !S.welcome && route() === "ticket" && document.visibilityState === "visible" && !(a && a.tagName === "TEXTAREA" && a.value)) loadTicket(true); }, 10000);
 
   /* ── sign-in steps ── */
@@ -819,7 +928,21 @@
     if (t.matches("[data-hold-set]")) { const f = S.holdForm; act(() => window.AdminApi.holdSet(S.accountId, f.kind, (f.text || "").trim()), "On. The server refuses it from now on.", () => { S.holdForm = null; loadHolds(); }); return; }
     if (t.dataset.holdLiftOpen) { S.holdForm = { lift: t.dataset.holdLiftOpen, text: "" }; render(); const x = $("#hold-text"); if (x) x.focus(); return; }
     if (t.dataset.holdLift) { const f = S.holdForm; act(() => window.AdminApi.holdLift(t.dataset.holdLift, (f && f.text || "").trim()), "Lifted.", () => { S.holdForm = null; loadHolds(); }); return; }
-    if (t.dataset.period) { S.period = t.dataset.period; render(); const r = route(); ({ countries: loadCountries, country: loadCountry, pair: loadPair, money: loadMoney })[r]?.(); return; }
+    if (t.dataset.period) { S.period = t.dataset.period; render(); const r = route(); ({ countries: loadCountries, country: loadCountry, pair: loadPair, money: loadMoney, shops: loadShops })[r]?.(); return; }
+    // Controls between countries (0221)
+    if (t.dataset.corrOpen) { S.corrForm = { key: t.dataset.corrOpen, dir: t.dataset.corrOpen.replace("/", ">"), mode: "pause", cap: "", reason: "" }; render(); return; }
+    if (t.dataset.corrDir && S.corrForm) { S.corrForm.dir = t.dataset.corrDir; render(); return; }
+    if (t.dataset.corrMode && S.corrForm) { S.corrForm.mode = t.dataset.corrMode; render(); return; }
+    if (t.matches("[data-corr-cancel]")) { S.corrForm = null; render(); return; }
+    if (t.matches("[data-corr-set]")) { const f = S.corrForm; const [from, to] = f.dir.split(">"); act(() => window.AdminApi.corridorSet({ from, to, paused: f.mode === "pause", cap: f.mode === "cap" ? Number(String(f.cap).replace(/[^\d.]/g, "")) : null, reason: (f.reason || "").trim() }), f.mode === "pause" ? "Paused. The next payment that way is refused." : "Capped. The send screen shows the new limit.", (r) => { S.corr = r; S.corrForm = null; }); return; }
+    if (t.dataset.corrLift) { act(() => window.AdminApi.corridorLift(t.dataset.corrLift), "Lifted. Payments go through as normal.", (r) => { S.corr = r; }); return; }
+    if (t.matches("[data-rates-refresh]")) { const list = (S.rates && S.rates.rates || []).filter((r) => r.ageHours === null || r.ageHours >= 6).map((r) => r.currency); if (!list.length) { toast("All rates are under six hours old."); return; } S.refreshing = true; render(); window.AdminApi.ratesRefresh(list).then((r) => { toast(r.failed.length ? `Refreshed ${r.done.length}; ${r.failed.length} failed: ${r.failed.map((f) => f.currency).join(", ")}` : `Refreshed ${r.done.join(", ")}.`); }).catch((e) => toast(e.message)).finally(() => { S.refreshing = false; loadRates(); }); return; }
+    if (t.matches("[data-sys-refresh]")) { S.sys = null; render(); loadSys(); return; }
+    // Alerts (0221)
+    if (t.dataset.alertToggle && S.alertsD) { const dr = S.alertsDraft || { on: S.alertsD.kinds.filter((k) => k.on).map((k) => k.kind), morningAt: S.alertsD.morningAt }; const k = t.dataset.alertToggle; dr.on = dr.on.includes(k) ? dr.on.filter((x) => x !== k) : dr.on.concat(k); S.alertsDraft = dr; render(); return; }
+    if (t.matches("[data-alerts-save]") && S.alertsDraft) { const dr = S.alertsDraft; act(() => window.AdminApi.alertsPrefs(dr.on, dr.morningAt), "Saved.", (r) => { S.alertsD = r; S.alertsDraft = null; }); return; }
+    if (t.matches("[data-alerts-test]")) { act(() => window.AdminApi.alertsTest(), "Sent. If alerts are on for this device, it arrives in a moment.", (r) => { S.alertsD = r; }); return; }
+    if (t.matches("[data-alerts-check]")) { act(() => window.AdminApi.alertsCheck(), "Checked.", (r) => { toast(r.sent ? `Checked: ${plural(r.sent, "alert")} sent.` : "Checked: nothing new."); loadAlerts(); }); return; }
     if (t.dataset.moneyccy) { S.moneyCcy = t.dataset.moneyccy; S.mdata = null; render(); loadMoney(); return; }
     if (t.dataset.setl) { S.setlTab = t.dataset.setl; S.setl = null; render(); loadSettlements(); return; }
     if (t.dataset.aside) { S.aside = { ccy: t.dataset.aside, reason: "", busy: false }; render(); const ta = $("#aside-reason"); if (ta) ta.focus(); return; }
@@ -848,7 +971,7 @@
     if (t.matches("[data-more]")) { S.more = true; render(); return; }
     if (t.matches("[data-refresh]")) { loadToday(); toast("Refreshing"); return; }
     if (t.matches("[data-theme-toggle]")) { const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark"); return; }
-    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.problems = null; S.complaint = null; S.tcase = null; S.holds = null; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
+    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.sys = null; S.grow = null; S.shopsD = null; S.riskD = null; S.liveD = null; S.alertsD = null; S.alertsDraft = null; S.corr = null; S.problems = null; S.complaint = null; S.tcase = null; S.holds = null; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
   });
   document.addEventListener("input", (e) => {
     if (e.target.id === "gid") { S.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); S.focus = "gid"; render(); }
@@ -856,6 +979,9 @@
     if (e.target.id === "q") { S.q = e.target.value; return; }
     if (e.target.id === "aside-reason" && S.aside) { S.aside.reason = e.target.value; return; }
     if (e.target.id === "pdraft") { S.pdraft = e.target.value; return; }
+    if (e.target.id === "corr-cap" && S.corrForm) { S.corrForm.cap = e.target.value; return; }
+    if (e.target.id === "corr-reason" && S.corrForm) { S.corrForm.reason = e.target.value; return; }
+    if (e.target.id === "alert-at" && S.alertsD) { const dr = S.alertsDraft || { on: S.alertsD.kinds.filter((k) => k.on).map((k) => k.kind), morningAt: S.alertsD.morningAt }; dr.morningAt = e.target.value; S.alertsDraft = dr; const b = $("[data-alerts-save]"); if (b) b.disabled = false; return; }
     if (e.target.id === "pform-text" && S.pform) { S.pform.text = e.target.value; return; }
     if (e.target.id === "hold-text" && S.holdForm) { S.holdForm.text = e.target.value; return; }
     if (e.target.id === "passnote") { S.passNote = e.target.value; return; }

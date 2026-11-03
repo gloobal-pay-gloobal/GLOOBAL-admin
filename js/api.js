@@ -78,6 +78,20 @@
     holds: (symbolId) => call("GET", `/api/admin/holds/${encodeURIComponent(symbolId)}`),
     holdSet: (symbolId, kind, reason) => call("POST", "/api/admin/holds", { body: { symbolId, kind, reason } }),
     holdLift: (id, reason) => call("POST", `/api/admin/holds/${encodeURIComponent(id)}/lift`, { body: { reason } }),
+    // The rest (0221)
+    corridors: () => call("GET", "/api/admin/corridors"),
+    corridorSet: (body) => call("POST", "/api/admin/corridors", { body }),
+    corridorLift: (id) => call("POST", `/api/admin/corridors/${encodeURIComponent(id)}/lift`, { body: {} }),
+    ratesRefresh: (currencies) => call("POST", "/api/admin/rates/refresh", { body: { currencies } }),
+    system: () => call("GET", "/api/admin/system"),
+    growth: () => call("GET", `/api/admin/growth?tz=${encodeURIComponent(tz())}`),
+    shops: (period) => call("GET", `/api/admin/shops?period=${encodeURIComponent(period)}&tz=${encodeURIComponent(tz())}`),
+    risk: () => call("GET", "/api/admin/risk"),
+    live: (after) => call("GET", `/api/admin/live${after ? `?after=${encodeURIComponent(after)}` : ""}`),
+    alerts: () => call("GET", "/api/admin/alerts"),
+    alertsPrefs: (on, morningAt) => call("POST", "/api/admin/alerts/prefs", { body: { on, morningAt, tz: tz() } }),
+    alertsTest: () => call("POST", "/api/admin/alerts/test", { body: {} }),
+    alertsCheck: () => call("POST", "/api/admin/alerts/check", { body: {} }),
     logout: () => call("POST", "/api/admin/logout", { body: {} }).catch(() => null),
   };
 })();

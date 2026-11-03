@@ -28,7 +28,15 @@ desk. Plain files — no build step, no npm install. It installs like an app
   approves); **holds** on an account from Look up (Risk and the founder):
   pause payments, pause bank payouts, hide a shop page.
 
-Still to come: Growth, Shops, Risk signals, Live feed, Server & deploys, Alerts.
+- **Part 6 (patch 0221):** every screen is live. **Controls** between two
+  countries on Two together (pause a direction, or cap each payment);
+  **refresh rates**; **Server & deploys** (what Render and Netlify run
+  against GitHub main); **Growth**; **Shops**; **Risk** signals with scores;
+  **Live feed**; **Alerts** — each person picks what reaches their phone,
+  and a morning summary of yesterday.
+
+Optional on Render: `GITHUB_TOKEN` (read-only) if Server & deploys shows
+"GitHub did not answer: HTTP 403" — a shared IP can hit GitHub's free limit.
 
 ## Roles
 

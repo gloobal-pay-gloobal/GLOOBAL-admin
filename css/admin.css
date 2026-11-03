@@ -573,3 +573,14 @@ tr:last-child td { border-bottom: none; }
 .bub.us { background: var(--accent-soft); }
 .chat .bub { max-width: 88%; }
 .bub.gl { align-self: stretch; max-width: none; background: var(--accent-soft); }
+
+/* ── 0221: the rest ── */
+.switch { flex-shrink: 0; width: 46px; height: 28px; border-radius: 999px; border: none; background: var(--line); position: relative; cursor: pointer; transition: background .15s; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: left .15s; }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"] i { left: 21px; }
+.score { flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; font-size: 14px; color: #fff; background: color-mix(in srgb, var(--bad) calc(var(--s) * 1%), var(--warn)); }
+.heat { display: inline-block; min-width: 42px; border-radius: 8px; padding: 2px 6px; font-weight: 800; background: color-mix(in srgb, var(--accent) calc(var(--p) * 0.6%), var(--surface-alt)); }
+.row.fresh { animation: freshrow 2.4s ease-out; }
+@keyframes freshrow { from { background: var(--accent-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .row.fresh { animation: none; } .switch, .switch i { transition: none; } }
