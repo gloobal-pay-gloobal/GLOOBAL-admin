@@ -76,6 +76,7 @@
     join: I('<circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 4-6 7-6M18 14v6M15 17h6"/>'),
     complaint: I('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
     desk: I('<path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/>'),
+    guide: I('<path d="M12 21a9 9 0 1 0-8-4.9L3 21l4.9-1A9 9 0 0 0 12 21z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4V14M12 17h.01"/>'),
     team: I('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M17 11l1.5 1.5L22 9"/>'),
     phone: I('<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>'),
     back: I('<path d="M15 18l-6-6 6-6"/>'),
@@ -86,13 +87,13 @@
   const NAV = [
     ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", null], ["money", "Money & books", null], ["lookup", "Look up", null],
     ["growth", "Growth", null], ["shops", "Shops", null], ["problems", "Problems", null], ["risk", "Risk", null],
-    ["live", "Live feed", null], ["system", "Server & deploys", null], ["alerts", "Alerts", null], ["team", "Team & roles", null], ["audit", "Audit log", null],
+    ["live", "Live feed", null], ["guide", "Ask GLOOBAL", null], ["system", "Server & deploys", null], ["alerts", "Alerts", null], ["team", "Team & roles", null], ["audit", "Audit log", null],
   ];
   // Each role lands on its own desk and sees only its own menu. The server
   // enforces the same fence on every call; this only keeps the menu honest.
   const ROLES = {
     admin: { name: "Admin", tone: "var(--accent)", home: "today", what: "Everything, every country, every action. Decides who is on the team.", nav: NAV.map((n) => n[0]) },
-    support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "problems", "lookup", "shops", "live", "alerts"] },
+    support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "problems", "lookup", "guide", "shops", "live", "alerts"] },
     finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "problems", "money", "countries", "lookup", "alerts"] },
     risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "problems", "risk", "lookup", "countries", "shops", "live", "alerts"] },
     tech: { name: "Tech", tone: "#3B6EF5", home: "system", what: "Server, deploys, errors, background jobs. Sees no one's money or numbers.", nav: ["system", "live", "alerts"] },
@@ -117,6 +118,8 @@
     ["See Shops", ["admin", "support", "risk"]],
     ["See Risk signals", ["admin", "risk"]],
     ["See the Live feed", ["admin", "support", "risk", "tech"]],
+    ["See what people ask Ask GLOOBAL; edit its answers", ["admin", "support"]],
+    ["Send a change about money to the app (not your own)", ["admin", "support"]],
     ["Choose your own phone alerts", ["admin", "support", "finance", "risk", "tech"]],
     ["See server, deploys, errors", ["admin", "tech"]],
     ["Add or remove people on the team", ["admin"]],
@@ -149,6 +152,7 @@
     welcome: false, viewAs: null, dtab: null, desk: null, ticketId: null, ticket: null, draft: "", sending: false, passing: null, passNote: "", team: null, add: { id: "", role: "support" }, issued: null, confirmRemove: null,
     q: "", found: null, searching: false, accountId: null, account: null, alerts: "unknown",
     period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null, corr: null, corrForm: null, sys: null, grow: null, shopsD: null, riskD: null, liveD: null, liveAfter: null, alertsD: null, alertsDraft: null,
+    gdata: null, gdays: 7, gtab: "questions", gedit: null, gfilter: "",
     ptab: "escalated", problems: null, complaintId: null, complaint: null, caseRef: null, tcase: null, pdraft: "", pform: null, holds: null, holdForm: null };
   const route = () => {
     const h = (location.hash || "").slice(1);
@@ -619,6 +623,112 @@
       `<div class="grid g2 tgrid"><div>${card("Send me", "", `<div class="rows">${toggles}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn" data-alerts-save style="flex:1" ${dirty ? "" : "disabled"}>Save</button><button type="button" class="btn quiet" data-alerts-test style="flex:1">Send me a test</button></div>${alertsBtn()}${realRole() === "admin" ? '<button type="button" class="btn quiet" data-alerts-check style="width:100%;margin-top:4px">Check everything now</button>' : ""}<p class="muted" style="font-size:11.5px;font-weight:600;margin:8px 0 0">Checked every five minutes. Each thing alerts once a day, however long it lasts.</p>`)}</div><div>${card("Sent to you", `${d.recent.length}`, `<div class="rows">${recent || '<p class="muted" style="font-weight:600;margin:6px 0 0">Nothing yet.</p>'}</div>`)}</div></div>`;
   }
 
+  /* ── Ask GLOOBAL (0223) ──
+     What people asked the app's question helper, which answers worked, and
+     the cards themselves — in English, हिन्दी, Hinglish and தமிழ். A change is
+     saved first and sent to the app after; a card about money is sent out
+     by someone other than whoever wrote the change. */
+  const G_LANGS = [["en", "English"], ["hi", "हिन्दी"], ["hl", "Hinglish"], ["ta", "தமிழ்"]];
+  const G_LANG_NAME = Object.fromEntries(G_LANGS);
+  const G_TOPICS = { send: "Sending", receive: "Receiving", bank: "GLOOBAL Bank", essentials: "My Essentials", shop: "My shop", geu: "GEU", account: "Account", help: "Help" };
+  const G_SCREENS = { send: "Send", bank: "GLOOBAL Bank", essentials: "My Essentials", shop: "My shop" };
+  const G_TARGETS = { send: "Send", bank: "GLOOBAL Bank", essentials: "My Essentials", myshop: "My shop", history: "History", receive: "Receive", scan: "Scanner", complaints: "Complaints & reports", security: "Security", referral: "Referrals", notifications: "Notifications", help: "Chat with us" };
+  const gq = (c) => (c && c.t && c.t.en ? c.t.en.q : "");
+  const gRich = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  const gArea = (id, val, ph, rows = 4) => `<textarea id="${id}" rows="${rows}" placeholder="${esc(ph)}" style="width:100%;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:9px 11px;font:inherit;font-size:13.5px;line-height:1.5;color:var(--ink)">${esc(val)}</textarea>`;
+  const gSelect = (id, val, opts) => `<select id="${id}" style="width:100%;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:9px 10px;font:inherit;font-size:13.5px;color:var(--ink)">${opts.map(([k, l]) => `<option value="${esc(k)}" ${k === val ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  function gStatus(c) {
+    if (c.draft) return `<span class="pill warn">change waiting${c.needsSecond ? " · 2nd person" : ""}</span>`;
+    if (c.hidden) return '<span class="pill quiet">not in the app</span>';
+    if (!c.live) return '<span class="pill quiet">not sent yet</span>';
+    const s = c.stats || {};
+    if (s.no > s.yes && s.no >= 2) return '<span class="pill bad">not helping</span>';
+    return c.origin === "team" ? '<span class="pill info">written by the team</span>' : c.changed ? '<span class="pill info">changed</span>' : '<span class="pill good">in the app</span>';
+  }
+  function viewGuide() {
+    const d = S.gdata;
+    const days = `<div class="tabs" role="group" aria-label="Period" style="margin:0">${[7, 30, 90].map((n) => `<button type="button" data-gdays="${n}" aria-pressed="${S.gdays === n}">${n} days</button>`).join("")}</div>`;
+    if (S.gedit) return viewGuideCard();
+    if (!d) return loading("Ask GLOOBAL", "What people ask the app, and the answers it gives");
+    const t = d.totals, asked = t.asked || 0;
+    const pct = (n) => (asked ? `${Math.round((n / asked) * 100)}%` : "—");
+    const tiles = [["Questions asked", INT.format(asked), `last ${d.days} days`], ["Answered straight away", pct(t.answer), `${INT.format(t.answer)} questions`], ["Offered a choice", pct(t.choices), `${INT.format(t.choices)} questions`], ["Found nothing", pct(t.none), `${INT.format(t.none)} — these need cards`], ["About their own money", INT.format(t.personal), "handed to a person; words not kept"], ["Said it helped", t.yes + t.no ? `${Math.round((t.yes / (t.yes + t.no)) * 100)}%` : "—", `${INT.format(t.yes)} yes · ${INT.format(t.no)} no`]];
+    const kpis = `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">${tiles.map(([a, b, c]) => `<div class="kpi" style="cursor:default"><span class="label">${a}</span><span class="val num">${esc(b)}</span><span class="delta muted">${esc(c)}</span></div>`).join("")}</div>`;
+    const waiting = d.cards.filter((c) => c.draft).length;
+    const tabs = `<div class="tabs" role="group" aria-label="Show">${[["questions", "Questions people asked", d.questions.length], ["cards", "Cards", d.cards.length], ["waiting", "Changes waiting", waiting]].map(([k, l, n]) => `<button type="button" data-gtab="${k}" aria-pressed="${S.gtab === k}">${l} <b>${INT.format(n)}</b></button>`).join("")}</div>`;
+    const cardOpts = [["", "Add to which card…"], ["__new", "+ A new card"], ...d.cards.map((c) => [c.id, `${gq(c.draft || c.card) || c.id}`])];
+    let body = "";
+    if (S.gtab === "questions") {
+      const rowsHtml = d.questions.map((q, i) => {
+        const card = q.cardId && d.cards.find((c) => c.id === q.cardId);
+        const how = q.none ? `<span class="pill bad">nothing found ×${INT.format(q.none)}</span>` : q.choices && !q.answer ? '<span class="pill warn">offered a choice</span>' : '<span class="pill good">answered</span>';
+        return `<div class="row prob" style="align-items:flex-start"><div class="grow" style="min-width:220px"><div class="name" style="white-space:normal">${esc(q.text)}</div><div class="meta" style="white-space:normal">${esc(G_LANG_NAME[q.lang] || "another language")} · ${ago(q.lastAt)}${card ? ` · answered with “${esc(gq(card.card || card.draft))}”` : ""}</div></div><span class="num" style="font-weight:800;min-width:34px;text-align:right">×${INT.format(q.count)}</span>${how}<div style="display:flex;gap:6px;flex-basis:100%;max-width:520px">${gSelect(`gq-${i}`, q.none ? "" : q.cardId || "", cardOpts)}<button type="button" class="btn quiet" data-gq-add="${i}" style="padding:8px 12px;white-space:nowrap">Add as a way of asking</button></div></div>`;
+      }).join("");
+      body = `<section class="card airy">${rowsHtml || '<p class="muted" style="font-weight:700;margin:0">Nobody has asked anything in this time yet. Questions typed in the app land here — the ones that found nothing first.</p>'}<p class="muted" style="font-size:11.5px;font-weight:600;margin:10px 0 0">Kept for 90 days, with no name, account or phone. Numbers are blanked (#) before they are stored. A question about someone's own money is counted, never written down.</p></section>`;
+    } else {
+      const f = S.gfilter.trim().toLowerCase();
+      const list = d.cards.filter((c) => (S.gtab !== "waiting" || c.draft) && (!f || `${c.id} ${gq(c.card || c.draft)}`.toLowerCase().includes(f)));
+      const rowsHtml = list.map((c) => { const k = c.draft || c.card || { t: {} }; const s = c.stats || {}; return `<button type="button" class="row tap" data-gcard="${esc(c.id)}" style="width:100%;background:none;border-left:none;border-right:none;border-bottom:none;text-align:left;font:inherit;color:inherit;align-items:flex-start"><div class="grow"><div class="name" style="white-space:normal">${esc(gq(k) || c.id)}</div><div class="meta" style="white-space:normal">${esc(c.id)} · ${esc(G_TOPICS[k.topic] || k.topic || "")}${k.money ? " · about money" : ""} · ${G_LANGS.map(([l, n]) => `<span style="${k.t && k.t[l] ? "" : "opacity:.35;text-decoration:line-through"}">${l.toUpperCase()}</span>`).join(" ")}${c.draft ? ` · change by ${esc(c.draftByName)} ${ago(c.draftAt)}` : ""}</div></div><span class="meta num" style="white-space:nowrap;margin-top:2px">shown ${INT.format(s.shown || 0)} · helped ${INT.format(s.yes || 0)} · didn’t ${INT.format(s.no || 0)}</span>${gStatus(c)}</button>`; }).join("");
+      body = `<section class="card airy"><div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap"><input id="g-filter" value="${esc(S.gfilter)}" placeholder="Find a card" style="flex:1;min-width:160px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:9px 11px;font:inherit;color:var(--ink)"><button type="button" class="btn" data-gnew style="padding:9px 14px">New card</button></div>${rowsHtml || '<p class="muted" style="font-weight:700;margin:0">Nothing here.</p>'}</section>`;
+    }
+    return header("Ask GLOOBAL", "What people ask the app's question helper, and the answers it gives", days) + kpis + tabs + body;
+  }
+  function gStartEdit(id, extra) {
+    const c = S.gdata.cards.find((x) => x.id === id);
+    const base = JSON.parse(JSON.stringify((c && (c.draft || c.card)) || { id, topic: "send", screens: [], money: false, action: null, tour: null, t: { en: { q: "", asks: [], steps: [] } } }));
+    let lang = "en";
+    if (extra && extra.text) {
+      lang = extra.lang && G_LANG_NAME[extra.lang] ? extra.lang : "en";
+      base.t[lang] = base.t[lang] || { q: "", asks: [], steps: [] };
+      if (!base.t[lang].asks.includes(extra.text)) base.t[lang].asks.push(extra.text);
+      if (!c && !base.t[lang].q) base.t[lang].q = extra.text;
+    }
+    S.gedit = { id: c ? id : "", isNew: !c, work: base, lang, dirty: Boolean(extra) };
+    render(); window.scrollTo(0, 0);
+  }
+  function viewGuideCard() {
+    const e = S.gedit, w = e.work;
+    const c = !e.isNew && S.gdata.cards.find((x) => x.id === e.id);
+    const x = w.t[e.lang] || { q: "", asks: [], steps: [] };
+    const tabs = `<div class="tabs" role="group" aria-label="Language" style="margin:4px 0 10px">${G_LANGS.map(([l, n]) => `<button type="button" data-glang="${l}" aria-pressed="${e.lang === l}">${n}${w.t[l] && w.t[l].q ? "" : " <b>—</b>"}</button>`).join("")}</div>`;
+    const screens = Object.entries(G_SCREENS).map(([k, l]) => `<button type="button" class="chip" data-gscreen="${k}" aria-pressed="${(w.screens || []).includes(k)}">${esc(l)}</button>`).join("");
+    const preview = `<div style="background:var(--bg);border-radius:22px;padding:14px;border:1px solid var(--line)"><div class="eyebrow" style="margin-bottom:8px">In the app · ${esc(G_LANG_NAME[e.lang])}</div><div style="background:var(--surface);border-radius:18px 18px 18px 6px;box-shadow:var(--shadow);padding:12px 14px"><div style="font-weight:800;font-size:14.5px;margin-bottom:6px">${esc(x.q || "The question")}</div>${(x.steps.length ? x.steps : ["The answer, one step per line."]).map((s, i) => `<div style="display:flex;gap:9px;padding:4px 0;font-size:13px;line-height:1.5;color:var(--ink-soft)">${x.steps.length > 1 ? `<span style="width:20px;height:20px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:10.5px;font-weight:900;display:grid;place-items:center;flex-shrink:0">${i + 1}</span>` : ""}<span>${gRich(s)}</span></div>`).join("")}${w.action ? `<div style="margin-top:8px"><span class="pill info">Open ${esc(G_TARGETS[w.action.target] || w.action.target)} →</span>${w.tour ? ' <span class="pill info">Show me</span>' : ""}</div>` : ""}</div></div>`;
+    const second = c && c.draft && c.draftMine && c.needsSecond;
+    const actions = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" data-gsave style="flex:1" ${S.acting ? "disabled" : ""}>${e.isNew ? "Save the new card" : "Save the change"}</button>${c && c.draft && !e.dirty ? `<button type="button" class="btn" data-gpublish style="flex:1" ${second || S.acting ? "disabled" : ""}>Send to the app</button><button type="button" class="btn quiet" data-gdiscard style="flex:1">Drop the change</button>` : ""}${c && c.live ? `<button type="button" class="btn quiet" data-ghide="${c.hidden ? "0" : "1"}" style="flex:1">${c.hidden ? "Put back in the app" : "Take out of the app"}</button>` : ""}</div>${second ? `<p class="muted" style="font-size:12px;font-weight:700;margin:8px 0 0">This card is about money, so someone else on Support or the founder sends your change out.</p>` : ""}${c && c.draft && !e.dirty ? `<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Waiting: change by ${esc(c.draftByName)}, ${ago(c.draftAt)}. The app still shows the old version until it is sent.</p>` : ""}${e.dirty ? '<p class="muted" style="font-size:12px;font-weight:600;margin:8px 0 0">Not saved yet.</p>' : ""}`;
+    const sub = e.isNew ? "A new card — English first, the others can follow" : `${esc(e.id)} · ${c && c.origin === "team" ? "written by the team" : "came with the app"} · shown ${INT.format((c && c.stats.shown) || 0)} · helped ${INT.format((c && c.stats.yes) || 0)} · didn’t ${INT.format((c && c.stats.no) || 0)}`;
+    return `<div class="top"><button type="button" class="icon-btn" data-gback aria-label="Back to the guide">${ICON.back}</button><h1>${esc(gq(w) || "New card")}<span class="sub">${sub}</span></h1>${c ? gStatus(c) : ""}</div>` +
+      `<div class="grid g2 tgrid"><section class="card airy">
+        ${e.isNew ? `<label class="eyebrow" for="g-id">Card name</label><input id="g-id" value="${esc(e.id)}" placeholder="like shop-delivery" autocomplete="off" spellcheck="false" style="width:100%;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:9px 11px;font:inherit;color:var(--ink);margin:6px 0 12px">` : ""}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label class="eyebrow" for="g-topic">About</label><div style="margin-top:6px">${gSelect("g-topic", w.topic, Object.entries(G_TOPICS))}</div></div><div><label class="eyebrow" for="g-target">Its button opens</label><div style="margin-top:6px">${gSelect("g-target", w.action ? w.action.target : "", [["", "No button"], ...Object.entries(G_TARGETS)])}</div></div></div>
+        <div class="eyebrow" style="margin-top:12px">The ? on these screens lists it</div><div class="chips" style="margin-top:6px">${screens}</div>
+        <div class="row" style="margin-top:10px;border-top:none;padding-left:0"><div class="grow"><div class="name">About money</div><div class="meta" style="white-space:normal">Moving or holding money. A change then needs a second person to send it out.</div></div><button type="button" class="switch" role="switch" aria-checked="${Boolean(w.money)}" data-gmoney aria-label="About money"><i></i></button></div>
+        ${tabs}
+        <label class="eyebrow" for="g-q">The question</label><input id="g-q" value="${esc(x.q)}" placeholder="How people would ask it, short" style="width:100%;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:9px 11px;font:inherit;font-size:14px;color:var(--ink);margin:6px 0 12px">
+        <label class="eyebrow" for="g-asks">Other ways people ask it — one per line</label><div style="margin-top:6px">${gArea("g-asks", x.asks.join("\n"), "Everyday words, short. Spellings people really use.", 5)}</div>
+        <label class="eyebrow" for="g-steps" style="display:block;margin-top:12px">The answer — one step per line</label><div style="margin-top:6px">${gArea("g-steps", x.steps.join("\n"), "Plain words. Put a button's name in **two stars** to make it bold.", 5)}</div>
+        ${actions}
+      </section><section class="card airy">${preview}<p class="muted" style="font-size:11.5px;font-weight:600;margin:10px 0 0">The app finds this card from the question and its other ways of asking, in any of the four languages. More ways of asking = found more often. No AI writes or changes the answer: people see exactly these words.</p></section></div>`;
+  }
+  // Read what is typed in the editor into the working copy, without a redraw.
+  function gRead(id, value) {
+    const e = S.gedit; if (!e) return false;
+    const w = e.work; const x = (w.t[e.lang] = w.t[e.lang] || { q: "", asks: [], steps: [] });
+    if (id === "g-q") x.q = value;
+    else if (id === "g-asks") x.asks = value.split("\n").map((s) => s.trim()).filter(Boolean);
+    else if (id === "g-steps") x.steps = value.split("\n").map((s) => s.trim()).filter(Boolean);
+    else if (id === "g-id") e.id = value.trim().toLowerCase();
+    else return false;
+    e.dirty = true;
+    return true;
+  }
+  const loadGuide = () => grab(() => window.AdminApi.guide(S.gdays), (r) => { S.gdata = r; }, "guide");
+  function gAfter(r) {
+    if (!S.gdata) return;
+    const i = S.gdata.cards.findIndex((c) => c.id === r.card.id);
+    if (i >= 0) S.gdata.cards[i] = r.card; else S.gdata.cards.push(r.card);
+    S.gedit = { id: r.card.id, isNew: false, work: JSON.parse(JSON.stringify(r.card.draft || r.card.card)), lang: S.gedit ? S.gedit.lang : "en", dirty: false };
+  }
+
   /* ── Team & roles (0216) ── */
   function viewTeam() {
     const t = S.team;
@@ -656,7 +766,7 @@
     if (S.welcome) { root.innerHTML = viewWelcome(); return; }
     let r = route();
     if (!allowed(r)) { r = ROLES[ROLE()].home; }
-    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase, system: viewSystem, growth: viewGrowth, shops: viewShops, risk: viewRisk, live: viewLive, alerts: viewAlerts };
+    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase, system: viewSystem, growth: viewGrowth, shops: viewShops, risk: viewRisk, live: viewLive, alerts: viewAlerts, guide: viewGuide };
     const view = live[r] ? live[r]() : viewSoon(r);
     const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : ["country", "pair"].includes(r) ? "countries" : ["books", "settlements", "rates"].includes(r) ? "money" : ["complaint", "tcase"].includes(r) ? "problems" : r;
     const nav = roleNav(), tabsK = roleTabs();
@@ -819,6 +929,7 @@
     if (r === "risk") loadRisk();
     if (r === "live") { S.liveD = null; loadLive(false); }
     if (r === "alerts") loadAlerts();
+    if (r === "guide") { S.gedit = null; loadGuide(); }
     if (r === "complaint") { if (!S.complaint || S.complaint.id !== S.complaintId) { S.complaint = null; S.pform = null; S.pdraft = ""; } loadComplaint(); }
     if (r === "tcase") { if (!S.tcase || S.tcase.ref !== S.caseRef) { S.tcase = null; S.pdraft = ""; } loadCase(); }
     if (r === "account") { if (!S.holds || S.holdsFor !== S.accountId) { S.holds = null; S.holdForm = null; S.holdsFor = S.accountId; } loadHolds(); }
@@ -976,6 +1087,19 @@
     if (t.dataset.key) { if (S.busy) return; if (t.dataset.key === "⌫") S.pin = S.pin.slice(0, -1); else if (S.pin.length < 6) S.pin += t.dataset.key; S.error = ""; render(); if (S.pin.length === 6) submitPin(); return; }
     if (t.matches("[data-setup]")) { makePasskey(); return; }
     if (t.matches("[data-passkey]")) { usePasskey(); return; }
+    if (t.dataset.gdays) { S.gdays = Number(t.dataset.gdays); S.gdata = null; render(); loadGuide(); return; }
+    if (t.dataset.gtab) { S.gtab = t.dataset.gtab; render(); return; }
+    if (t.dataset.gcard) { gStartEdit(t.dataset.gcard); return; }
+    if (t.hasAttribute("data-gnew")) { gStartEdit("", null); return; }
+    if (t.hasAttribute("data-gback")) { S.gedit = null; render(); return; }
+    if (t.dataset.gqAdd != null && S.gdata) { const q = S.gdata.questions[Number(t.dataset.gqAdd)]; const sel = $(`#gq-${t.dataset.gqAdd}`); const to = sel && sel.value; if (!to) { toast("Pick the card it belongs to first."); return; } gStartEdit(to === "__new" ? "" : to, { text: q.text, lang: q.lang }); return; }
+    if (t.dataset.glang && S.gedit) { S.gedit.lang = t.dataset.glang; render(); return; }
+    if (t.dataset.gscreen && S.gedit) { const w = S.gedit.work; w.screens = (w.screens || []).includes(t.dataset.gscreen) ? w.screens.filter((x) => x !== t.dataset.gscreen) : (w.screens || []).concat(t.dataset.gscreen); S.gedit.dirty = true; render(); return; }
+    if (t.hasAttribute("data-gmoney") && S.gedit) { S.gedit.work.money = !S.gedit.work.money; S.gedit.dirty = true; render(); return; }
+    if (t.hasAttribute("data-gsave") && S.gedit) { const e = S.gedit; if (!e.id) { toast("Give the card a name first, like shop-delivery."); return; } act(() => window.AdminApi.guideDraft(e.id, e.work, e.isNew), "Saved. It goes to the app when it is sent.", gAfter); return; }
+    if (t.hasAttribute("data-gpublish") && S.gedit) { act(() => window.AdminApi.guidePublish(S.gedit.id), "Sent. The app shows it the next time someone opens Ask GLOOBAL.", gAfter); return; }
+    if (t.hasAttribute("data-gdiscard") && S.gedit) { act(() => window.AdminApi.guideDiscard(S.gedit.id), "Dropped.", (r) => { gAfter(r); if (!r.card.live && !r.card.draft) { S.gedit = null; loadGuide(); } }); return; }
+    if (t.dataset.ghide && S.gedit) { act(() => window.AdminApi.guideHide(S.gedit.id, t.dataset.ghide === "1"), t.dataset.ghide === "1" ? "Taken out of the app." : "Back in the app.", gAfter); return; }
     if (t.dataset.go) { go(t.dataset.go); return; }
     if (t.matches("[data-more]")) { S.more = true; render(); return; }
     if (t.matches("[data-refresh]")) { loadToday(); toast("Refreshing"); return; }
@@ -985,6 +1109,8 @@
   document.addEventListener("input", (e) => {
     if (e.target.id === "gid") { S.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); S.focus = "gid"; render(); }
     if (e.target.id === "reply") { S.draft = e.target.value; return; }
+    if (gRead(e.target.id, e.target.value)) return;
+    if (e.target.id === "g-filter") { S.gfilter = e.target.value; render(); return; }
     if (e.target.id === "q") { S.q = e.target.value; return; }
     if (e.target.id === "aside-reason" && S.aside) { S.aside.reason = e.target.value; return; }
     if (e.target.id === "pdraft") { S.pdraft = e.target.value; return; }
@@ -996,6 +1122,11 @@
     if (e.target.id === "passnote") { S.passNote = e.target.value; return; }
     if (e.target.id === "add-id") { S.add.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); const b = $("[data-add]"); if (b) b.disabled = Array.from(S.add.id).length !== 12; if (e.target.value !== S.add.id) { e.target.value = S.add.id; } return; }
     if (e.target.id === "setup") { S.setupCode = e.target.value; S.focus = "setup"; const b = $("[data-setup]"); if (b) b.disabled = !S.setupCode; }
+  });
+  document.addEventListener("change", (e) => {
+    if (!S.gedit) return;
+    if (e.target.id === "g-topic") { S.gedit.work.topic = e.target.value; S.gedit.dirty = true; render(); }
+    if (e.target.id === "g-target") { S.gedit.work.action = e.target.value ? { target: e.target.value } : null; S.gedit.dirty = true; render(); }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && S.more) { S.more = false; render(); }

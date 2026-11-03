@@ -92,6 +92,12 @@
     alertsPrefs: (on, morningAt) => call("POST", "/api/admin/alerts/prefs", { body: { on, morningAt, tz: tz() } }),
     alertsTest: () => call("POST", "/api/admin/alerts/test", { body: {} }),
     alertsCheck: () => call("POST", "/api/admin/alerts/check", { body: {} }),
+    // Ask GLOOBAL (0223)
+    guide: (days) => call("GET", `/api/admin/guide?days=${encodeURIComponent(days || 7)}`),
+    guideDraft: (id, card, isNew) => call("PUT", `/api/admin/guide/${encodeURIComponent(id)}/draft`, { body: { card, isNew: Boolean(isNew) } }),
+    guidePublish: (id) => call("POST", `/api/admin/guide/${encodeURIComponent(id)}/publish`, { body: {} }),
+    guideDiscard: (id) => call("POST", `/api/admin/guide/${encodeURIComponent(id)}/discard`, { body: {} }),
+    guideHide: (id, hidden) => call("POST", `/api/admin/guide/${encodeURIComponent(id)}/hidden`, { body: { hidden } }),
     logout: () => call("POST", "/api/admin/logout", { body: {} }).catch(() => null),
   };
 })();

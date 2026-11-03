@@ -34,6 +34,11 @@ desk. Plain files — no build step, no npm install. It installs like an app
   against GitHub main); **Growth**; **Shops**; **Risk** signals with scores;
   **Live feed**; **Alerts** — each person picks what reaches their phone,
   and a morning summary of yesterday.
+- **Ask GLOOBAL (patch 0223):** what people ask the app's question helper —
+  the questions that found nothing first — and the guide's cards in English,
+  हिन्दी, Hinglish and தமிழ். Support and the founder edit; a change is saved
+  first and sent to the app after; a card about money is sent by someone
+  other than whoever wrote the change. Counts are anonymous, kept 90 days.
 
 Optional on Render: `GITHUB_TOKEN` (read-only) if Server & deploys shows
 "GitHub did not answer: HTTP 403" — a shared IP can hit GitHub's free limit.
