@@ -508,8 +508,9 @@ tr:last-child td { border-bottom: none; }
 .alerts-btn[disabled] { cursor: default; opacity: 0.75; }
 
 /* ── 0219: GEU on every figure, Countries, Money & books ── */
-/* The other name is smaller, not fainter (the app's rule). */
-.money .geu { font-size: 0.75em; font-weight: inherit; color: inherit; opacity: 1; margin-left: 5px; }
+/* 0224: both names ¾ size; the one you read in bright, the other dimmed. */
+.money .unit { font-size: 0.75em; font-weight: inherit; }
+.money .geu { font-size: 0.75em; font-weight: inherit; color: inherit; opacity: 0.42; margin-left: 5px; }
 .unit-btn b { color: var(--ink-faint); font-weight: 900; }
 .unit-btn b.on { color: var(--accent); }
 .chiprow { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }

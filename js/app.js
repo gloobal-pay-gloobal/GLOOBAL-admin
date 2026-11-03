@@ -33,22 +33,26 @@
     return new Intl.NumberFormat(ccy === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).format(a).replace(/\.00$/, "");
   }
   // The figure as two parts: what you read it in, and its other name.
+  // 0224: the name you read in comes first, bright; the other follows the
+  // bar, dimmed — the same size. Your own money by its sign, anyone else's
+  // by its code, and GEU on every figure (the app's rule, kept here too).
+  //   Local:   18.4L₹ │ GEU      4.1K USD │ GEU
+  //   GEU:     18.4L GEU │ ₹     4.1K GEU │ USD
   function moneyParts(v, ccy = "INR", compact = true) {
     const code = String(ccy || "").toUpperCase();
     const n = Number(v) || 0, sign = n < 0 ? "−" : "";
     const b = body(n, code, compact);
     const [sym, pos] = SYM[code] || [code, "code"];
-    const mine = code === own();
-    const real = pos === "before" ? `${sign}${sym}${b}` : pos === "after" ? `${sign}${b}${sym}` : `${sign}${b} ${code}`;
-    if (lens === "geu") return { lead: `${sign}${b} GEU`, trail: mine && pos !== "code" ? sym : code };
-    const trail = mine ? "GEU" : code;
-    return { lead: real, trail: pos === "code" && !mine ? "" : trail };
+    const name = code === own() && pos !== "code" ? sym : code;
+    const lead = lens === "geu" ? "GEU" : name, trail = lens === "geu" ? name : "GEU";
+    const glue = /[A-Za-z]/.test(lead) ? " " : "";
+    return { num: `${sign}${b}`, unit: lead, glue, lead: `${sign}${b}${glue}${lead}`, trail };
   }
   function money(v, ccy = "INR", compact = true) {
     const p = moneyParts(v, ccy, compact);
-    return `<span class="num money">${esc(p.lead)}${p.trail ? `<span class="geu">│ ${esc(p.trail)}</span>` : ""}</span>`;
+    return `<span class="num money">${esc(p.num)}<span class="unit">${p.glue ? "&nbsp;" : ""}${esc(p.unit)}</span><span class="geu">│ ${esc(p.trail)}</span></span>`;
   }
-  const moneyText = (v, ccy, compact = true) => { const p = moneyParts(v, ccy, compact); return p.trail ? `${p.lead} │ ${p.trail}` : p.lead; };
+  const moneyText = (v, ccy, compact = true) => { const p = moneyParts(v, ccy, compact); return `${p.lead} │ ${p.trail}`; };
   const lensBtn = () => `<button type="button" class="unit-btn" data-lens aria-label="Read money in ${lens === "geu" ? "local currency" : "GEU"}"><b class="${lens === "local" ? "on" : ""}">Local</b> · <b class="${lens === "geu" ? "on" : ""}">GEU</b></button>`;
   const plural = (n, word) => `${INT.format(Number(n) || 0)} ${word}${Number(n) === 1 ? "" : "s"}`;
   const count = (n) => `<span class="num">${INT.format(Math.round(Number(n) || 0))}</span>`;
@@ -373,8 +377,7 @@
     const p = moneyParts(1, ccy, false);
     const f = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(v);
     const q = moneyParts(0, ccy, false);
-    const lead = p.lead.replace(/1(\.00)?/, f);
-    return `<span class="num money">${esc(lead)}${q.trail ? `<span class="geu">│ ${esc(q.trail)}</span>` : ""}</span>`;
+    return `<span class="num money">${esc(f)}<span class="unit">${p.glue ? "&nbsp;" : ""}${esc(p.unit)}</span><span class="geu">│ ${esc(q.trail)}</span></span>`;
   }
   const rateLine = (one, equals, into) => `${money(1, one, false)} = ${rateMoney(equals, into)}`;
 
