@@ -33,18 +33,18 @@
     return new Intl.NumberFormat(ccy === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).format(a).replace(/\.00$/, "");
   }
   // The figure as two parts: what you read it in, and its other name.
-  // 0224: the name you read in comes first, bright; the other follows the
-  // bar, dimmed — the same size. Your own money by its sign, anyone else's
-  // by its code, and GEU on every figure (the app's rule, kept here too).
-  //   Local:   18.4L₹ │ GEU      4.1K USD │ GEU
-  //   GEU:     18.4L GEU │ ₹     4.1K GEU │ USD
+  // 0228: the other name sits on the number, dimmed; the name you read in
+  // follows the bar, bright — the same size. Your own money by its sign,
+  // anyone else's by its code, and GEU on every figure (the app's rule).
+  //   Local:   18.4L GEU │ ₹     4.1K GEU │ USD
+  //   GEU:     18.4L₹ │ GEU      4.1K USD │ GEU
   function moneyParts(v, ccy = "INR", compact = true) {
     const code = String(ccy || "").toUpperCase();
     const n = Number(v) || 0, sign = n < 0 ? "−" : "";
     const b = body(n, code, compact);
     const [sym, pos] = SYM[code] || [code, "code"];
     const name = code === own() && pos !== "code" ? sym : code;
-    const lead = lens === "geu" ? "GEU" : name, trail = lens === "geu" ? name : "GEU";
+    const lead = lens === "geu" ? name : "GEU", trail = lens === "geu" ? "GEU" : name;
     const glue = /[A-Za-z]/.test(lead) ? " " : "";
     return { num: `${sign}${b}`, unit: lead, glue, lead: `${sign}${b}${glue}${lead}`, trail };
   }
