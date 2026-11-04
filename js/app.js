@@ -658,10 +658,20 @@
     const tiles = [["Questions asked", INT.format(asked), `last ${d.days} days`], ["Answered straight away", pct(t.answer), `${INT.format(t.answer)} questions`], ["Offered a choice", pct(t.choices), `${INT.format(t.choices)} questions`], ["Found nothing", pct(t.none), `${INT.format(t.none)} — these need cards`], ["About their own money", INT.format(t.personal), "handed to a person; words not kept"], ["Said it helped", t.yes + t.no ? `${Math.round((t.yes / (t.yes + t.no)) * 100)}%` : "—", `${INT.format(t.yes)} yes · ${INT.format(t.no)} no`]];
     const kpis = `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">${tiles.map(([a, b, c]) => `<div class="kpi" style="cursor:default"><span class="label">${a}</span><span class="val num">${esc(b)}</span><span class="delta muted">${esc(c)}</span></div>`).join("")}</div>`;
     const waiting = d.cards.filter((c) => c.draft).length;
-    const tabs = `<div class="tabs" role="group" aria-label="Show">${[["questions", "Questions people asked", d.questions.length], ["cards", "Cards", d.cards.length], ["waiting", "Changes waiting", waiting]].map(([k, l, n]) => `<button type="button" data-gtab="${k}" aria-pressed="${S.gtab === k}">${l} <b>${INT.format(n)}</b></button>`).join("")}</div>`;
+    const tabs = `<div class="tabs" role="group" aria-label="Show">${[["questions", "Questions people asked", d.questions.length], ["cards", "Cards", d.cards.length], ["waiting", "Changes waiting", waiting], ["feedback", "Feedback", (d.feedback || []).length]].map(([k, l, n]) => `<button type="button" data-gtab="${k}" aria-pressed="${S.gtab === k}">${l} <b>${INT.format(n)}</b></button>`).join("")}</div>`;
     const cardOpts = [["", "Add to which card…"], ["__new", "+ A new card"], ...d.cards.map((c) => [c.id, `${gq(c.draft || c.card) || c.id}`])];
     let body = "";
-    if (S.gtab === "questions") {
+    if (S.gtab === "feedback") {
+      // 0238: what people say about Ask GLOOBAL itself, from its "Give
+      // feedback". Anonymous; numbers and emails were blanked on arrival.
+      const moods = [["good", "Good", "good"], ["ok", "Okay", "warn"], ["bad", "Not good", "bad"]];
+      const counts = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${moods.map(([k, l, tone]) => `<span class="pill ${tone}">${l} · ${INT.format(t[`mood_${k}`] || 0)}</span>`).join("")}</div>`;
+      const rowsHtml = (d.feedback || []).map((f) => {
+        const m = moods.find((x) => x[0] === f.mood) || ["", "—", "quiet"];
+        return `<div class="row" style="align-items:flex-start"><span class="pill ${m[2]}" style="flex-shrink:0">${m[1]}</span><div class="grow" style="min-width:200px"><div class="name" style="white-space:normal;font-weight:${f.text ? 700 : 500}">${f.text ? esc(f.text) : '<span class="muted">No words, just the face.</span>'}</div><div class="meta">${esc(G_LANG_NAME[f.lang] || f.lang || "")} · ${esc(new Date(f.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</div></div></div>`;
+      }).join("");
+      body = `<section class="card airy">${counts}${rowsHtml || '<p class="muted" style="font-weight:700;margin:0">No feedback in this time yet. What people send from "Give feedback" in Ask GLOOBAL lands here.</p>'}</section>`;
+    } else if (S.gtab === "questions") {
       const rowsHtml = d.questions.map((q, i) => {
         const card = q.cardId && d.cards.find((c) => c.id === q.cardId);
         const how = q.none ? `<span class="pill bad">nothing found ×${INT.format(q.none)}</span>` : q.choices && !q.answer ? '<span class="pill warn">offered a choice</span>' : '<span class="pill good">answered</span>';
