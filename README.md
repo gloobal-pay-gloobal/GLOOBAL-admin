@@ -17,8 +17,8 @@ desk. Plain files — no build step, no npm install. It installs like an app
   notifications already use.
 
 - **Part 4 (patch 0219):** **Countries** (Admin, Finance, Risk) and **Money &
-  books** (Admin, Finance), live. **GEU on every figure**, with a Local · GEU
-  switch on every screen: `18.4L₹ │ GEU` or `18.4L GEU │ ₹`, other
+  books** (Admin, Finance), live. **CEL on every figure**, with a Local · CEL
+  switch on every screen: `18.4L₹ │ CEL` or `18.4L CEL │ ₹`, other
   currencies by their code (`$4.1K │ USD`). Admin can **set a books gap
   aside** with a reason, from Books for a currency.
 
@@ -34,6 +34,9 @@ desk. Plain files — no build step, no npm install. It installs like an app
   against GitHub main); **Growth**; **Shops**; **Risk** signals with scores;
   **Live feed**; **Alerts** — each person picks what reaches their phone,
   and a morning summary of yesterday.
+- **Liquidity (Nov 2026):** where members' balances sit, for Admin and Finance:
+  the largest holders (members who hid from the app's board are listed and
+  marked), how much the top ten hold, and the split by country.
 - **Ask GLOOBAL (patch 0223):** what people ask the app's question helper —
   the questions that found nothing first — and the guide's cards in English,
   हिन्दी, Hinglish and தமிழ். Support and the founder edit; a change is saved

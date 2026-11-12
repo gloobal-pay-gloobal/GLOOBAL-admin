@@ -507,7 +507,7 @@ tr:last-child td { border-bottom: none; }
 .alerts-btn.is-on { background: var(--good-soft); color: var(--good); }
 .alerts-btn[disabled] { cursor: default; opacity: 0.75; }
 
-/* ── 0219: GEU on every figure, Countries, Money & books ── */
+/* ── 0219: CEL on every figure, Countries, Money & books ── */
 /* 0228: both names ¾ size; the one on the number dimmed, the one you read in
    (after the bar) bright. */
 .money .unit { font-size: 0.75em; font-weight: inherit; opacity: 0.42; }

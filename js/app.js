@@ -10,14 +10,17 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const INT = new Intl.NumberFormat("en-IN");
   const IN2 = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  // ── GEU ON EVERY FIGURE (0219) ──────────────────────────────────────
-  // The app's rule, kept here too: GEU is the second name of a figure,
+  // (CEL, Circular Energy Loop, is the unit the app called GEU until Nov 2026.
+  // Only the name people read changed: the saved switch value "geu", the
+  // .geu style and the guide topic key keep their old spelling.)
+  // ── CEL ON EVERY FIGURE (0219) ──────────────────────────────────────
+  // The app's rule, kept here too: CEL is the second name of a figure,
   // never a conversion, and never written without the currency it is in.
-  //   Local:   18.4L₹ │ GEU      $4.1K │ USD
-  //   GEU:     18.4L GEU │ ₹     4.1K GEU │ USD
+  //   Local:   18.4L₹ │ CEL      $4.1K │ USD
+  //   CEL:     18.4L CEL │ ₹     4.1K CEL │ USD
   // Your own money is named by its symbol, anyone else's by its code. The
   // name you are reading in is the bigger one; the other is 75% — smaller,
-  // not fainter. One switch (Local · GEU) in every screen's header.
+  // not fainter. One switch (Local · CEL) in every screen's header.
   const CMP_IN = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
   const CMP_EN = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
   const SYM = { INR: ["₹", "after"], USD: ["$", "before"], GBP: ["£", "before"], EUR: ["€", "before"], JPY: ["¥", "before"], AED: ["AED", "code"], CNY: ["CNY", "code"] };
@@ -35,16 +38,16 @@
   // The figure as two parts: what you read it in, and its other name.
   // 0228: the other name sits on the number, dimmed; the name you read in
   // follows the bar, bright — the same size. Your own money by its sign,
-  // anyone else's by its code, and GEU on every figure (the app's rule).
-  //   Local:   18.4L GEU │ ₹     4.1K GEU │ USD
-  //   GEU:     18.4L₹ │ GEU      4.1K USD │ GEU
+  // anyone else's by its code, and CEL on every figure (the app's rule).
+  //   Local:   18.4L CEL │ ₹     4.1K CEL │ USD
+  //   CEL:     18.4L₹ │ CEL      4.1K USD │ CEL
   function moneyParts(v, ccy = "INR", compact = true) {
     const code = String(ccy || "").toUpperCase();
     const n = Number(v) || 0, sign = n < 0 ? "−" : "";
     const b = body(n, code, compact);
     const [sym, pos] = SYM[code] || [code, "code"];
     const name = code === own() && pos !== "code" ? sym : code;
-    const lead = lens === "geu" ? name : "GEU", trail = lens === "geu" ? "GEU" : name;
+    const lead = lens === "geu" ? name : "CEL", trail = lens === "geu" ? "CEL" : name;
     const glue = /[A-Za-z]/.test(lead) ? " " : "";
     return { num: `${sign}${b}`, unit: lead, glue, lead: `${sign}${b}${glue}${lead}`, trail };
   }
@@ -53,7 +56,7 @@
     return `<span class="num money">${esc(p.num)}<span class="unit">${p.glue ? "&nbsp;" : ""}${esc(p.unit)}</span><span class="geu">│ ${esc(p.trail)}</span></span>`;
   }
   const moneyText = (v, ccy, compact = true) => { const p = moneyParts(v, ccy, compact); return `${p.lead} │ ${p.trail}`; };
-  const lensBtn = () => `<button type="button" class="unit-btn" data-lens aria-label="Read money in ${lens === "geu" ? "local currency" : "GEU"}"><b class="${lens === "local" ? "on" : ""}">Local</b> · <b class="${lens === "geu" ? "on" : ""}">GEU</b></button>`;
+  const lensBtn = () => `<button type="button" class="unit-btn" data-lens aria-label="Read money in ${lens === "geu" ? "local currency" : "CEL"}"><b class="${lens === "local" ? "on" : ""}">Local</b> · <b class="${lens === "geu" ? "on" : ""}">CEL</b></button>`;
   const plural = (n, word) => `${INT.format(Number(n) || 0)} ${word}${Number(n) === 1 ? "" : "s"}`;
   const count = (n) => `<span class="num">${INT.format(Math.round(Number(n) || 0))}</span>`;
   const ago = (d) => { const s = Math.max(0, (Date.now() - new Date(d)) / 1000); if (s < 60) return "just now"; if (s < 3600) return `${Math.floor(s / 60)} min ago`; if (s < 86400) return `${Math.floor(s / 3600)} h ago`; return new Date(d).toLocaleDateString([], { day: "numeric", month: "short" }); };
@@ -65,6 +68,7 @@
     countries: I('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'),
     money: I('<rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 10h20M6 15h4"/>'),
     growth: I('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
+    liquidity: I('<path d="M12 3c3.5 4.2 6 7.4 6 10.5a6 6 0 0 1-12 0C6 10.4 8.5 7.2 12 3z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>'),
     shops: I('<path d="M4 10v10h16V10M3 4h18l-1.5 6h-15z"/><path d="M10 20v-5h4v5"/>'),
     risk: I('<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M12 8v5M12 16h.01"/>'),
     problems: I('<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>'),
@@ -89,7 +93,7 @@
   };
   // Part 1 is live; the rest arrive part by part, in this order.
   const NAV = [
-    ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", null], ["money", "Money & books", null], ["lookup", "Look up", null],
+    ["today", "Today", null], ["desk", "Support desk", null], ["countries", "Countries", null], ["money", "Money & books", null], ["liquidity", "Liquidity", null], ["lookup", "Look up", null],
     ["growth", "Growth", null], ["shops", "Shops", null], ["problems", "Problems", null], ["risk", "Risk", null],
     ["live", "Live feed", null], ["guide", "Ask GLOOBAL", null], ["system", "Server & deploys", null], ["alerts", "Alerts", null], ["team", "Team & roles", null], ["audit", "Audit log", null],
   ];
@@ -98,7 +102,7 @@
   const ROLES = {
     admin: { name: "Admin", tone: "var(--accent)", home: "today", what: "Everything, every country, every action. Decides who is on the team.", nav: NAV.map((n) => n[0]) },
     support: { name: "Support", tone: "#0F9D8A", home: "desk", what: "Answers people and shops. Sees an account with its balance and full number hidden; passes money questions to Finance and fraud to Risk.", nav: ["desk", "problems", "lookup", "guide", "shops", "live", "alerts"] },
-    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "problems", "money", "countries", "lookup", "alerts"] },
+    finance: { name: "Finance", tone: "#D98A00", home: "desk", what: "The books, pools, settlements between countries, bank payouts — and the questions Support passes to Finance.", nav: ["desk", "problems", "money", "liquidity", "countries", "lookup", "alerts"] },
     risk: { name: "Risk", tone: "#E23F45", home: "desk", what: "Signals, holds, reviews — and the questions Support passes to Risk.", nav: ["desk", "problems", "risk", "lookup", "countries", "shops", "live", "alerts"] },
     tech: { name: "Tech", tone: "#3B6EF5", home: "system", what: "Server, deploys, errors, background jobs. Sees no one's money or numbers.", nav: ["system", "live", "alerts"] },
   };
@@ -111,6 +115,7 @@
     ["See balances and full phone numbers", ["admin", "finance", "risk"]],
     ["See Countries", ["admin", "finance", "risk"]],
     ["See Money & books", ["admin", "finance"]],
+    ["See Liquidity: members' balances, largest first", ["admin", "finance"]],
     ["Set a books gap aside", ["admin"]],
     ["Answer escalated complaints and bank cases", ["admin", "support", "finance", "risk"]],
     ["Propose sending money back", ["admin", "support", "finance"]],
@@ -132,6 +137,7 @@
   const SOON = {
     countries: "Each country on its own, or two together: where the money sits, PayLater pools, what is waiting to settle each way, banks, Essentials locked, Creator Share.",
     money: "What GLOOBAL holds by currency, what moved it today, the books check per currency, pools and how long they last, banks, exchange rates.",
+    liquidity: "Where members' balances sit: the largest holders, how much the top ten hold, the split by country, and who hid from the app's board.",
     lookup: "Any account by GLOOBAL ID, shop name or phone: balance, Essentials, shops, activity, notes; and the logged actions (hold, hold payouts, hide a page).",
     growth: "Sign-ups, who keeps paying week by week, where sign-ups stop, countries, referrals.",
     shops: "Every shop by takings, growth and complaints; how fast each answers; the name market.",
@@ -155,7 +161,7 @@
   const S = { stage: "door", id: "", pin: "", pre: null, preRole: null, setupCode: "", busy: false, error: "", today: null, todayAt: null, audit: null, more: false, loading: false,
     welcome: false, viewAs: null, dtab: null, desk: null, ticketId: null, ticket: null, draft: "", sending: false, passing: null, passNote: "", team: null, add: { id: "", role: "support" }, issued: null, confirmRemove: null,
     q: "", found: null, searching: false, accountId: null, account: null, alerts: "unknown",
-    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null, corr: null, corrForm: null, sys: null, grow: null, shopsD: null, riskD: null, liveD: null, liveAfter: null, alertsD: null, alertsDraft: null,
+    period: "today", cdata: null, iso: null, country: null, pairA: null, pairB: null, pairData: null, mdata: null, moneyCcy: null, booksCcy: null, books: null, aside: null, setlTab: "settled", setl: null, rates: null, corr: null, corrForm: null, sys: null, grow: null, shopsD: null, liqD: null, riskD: null, liveD: null, liveAfter: null, alertsD: null, alertsDraft: null,
     gdata: null, gdays: 7, gtab: "questions", gedit: null, gfilter: "",
     ptab: "escalated", problems: null, complaintId: null, complaint: null, caseRef: null, tcase: null, pdraft: "", pform: null, holds: null, holdForm: null };
   const route = () => {
@@ -372,7 +378,7 @@
   const C_FREE = "var(--accent)", C_LOCK = "#C98500";
   const signed = (v, ccy, compact = true) => `<span class="${v > 0 ? "up" : v < 0 ? "down" : ""}">${v > 0 ? "+" : ""}${money(v, ccy, compact)}</span>`;
   const agoText = (d) => (d ? ago(d) : "never");
-  // A rate is two figures, each with its name: "$1 │ USD = 88.42₹ │ GEU".
+  // A rate is two figures, each with its name: "$1 │ USD = 88.42₹ │ CEL".
   function rateMoney(v, ccy) {
     const p = moneyParts(1, ccy, false);
     const f = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(v);
@@ -599,6 +605,24 @@
     const rows = d.shops.map((x) => `<button type="button" class="row tap" data-account="${esc(x.symbolId)}" style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit;flex-wrap:wrap"><div class="grow"><div class="name">${esc(x.name)} <span class="muted" style="font-weight:700">· ${esc(x.owner || "")}${x.category ? ` · ${esc(x.category)}` : ""}</span></div><div class="meta">${plural(x.payments, "payment")} · ${plural(x.payers, "payer")}${x.complaints ? ` · ${plural(x.complaints, "complaint")} in 30 days${x.openComplaints ? ` (${x.openComplaints} open)` : ""}` : ""}${x.replyHours !== null ? ` · answers in ${x.replyHours < 1 ? `${Math.round(x.replyHours * 60)} min` : `${x.replyHours} h`}` : ""}</div>${x.hidden || x.holds.length ? `<div style="margin-top:4px">${x.hidden ? '<span class="pill bad">hidden</span> ' : ""}${x.holds.filter((h) => h !== "shop").map((h) => `<span class="pill bad">${h === "sending" ? "payments paused" : "payouts paused"}</span>`).join(" ")}</div>` : ""}</div><div class="amt">${money(x.takings, x.currency)}</div></button>`).join("");
     return header("Shops", `${plural(d.total, "shop")} · by takings, compared in ${esc(d.viewerCurrency)}`) + periodRow() + card("Takings", PERIODS.find((p) => p[0] === d.period)[1], `<div class="rows">${rows || '<p class="muted" style="font-weight:600;margin:6px 0 0">No shops yet.</p>'}</div>`);
   }
+  // ── Liquidity: where members' balances sit, largest first ──
+  // The app shows members a public board they can hide from. This is the
+  // staff side of it: nobody is left out (a hidden member is marked), with
+  // how concentrated the money is and how it splits by country.
+  function viewLiquidity() {
+    const d = S.liqD;
+    if (!d) return loading("Liquidity", "Where members' balances sit");
+    const c = d.currency, pct = (n) => `${Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+    const kpi = (l, v, x) => `<div class="kpi" style="cursor:default"><span class="label">${l}</span><span class="val">${v}</span><span class="delta muted">${x}</span></div>`;
+    const bar = (p) => `<div style="height:6px;border-radius:6px;background:var(--surface-alt);margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.max(0, Math.min(100, Number(p) || 0))}%;background:var(--accent);border-radius:6px"></div></div>`;
+    const rows = d.rows.map((x) => `<button type="button" class="row tap" ${x.symbolId ? `data-account="${esc(x.symbolId)}"` : "disabled"} style="width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit"><span class="num" style="width:34px;flex-shrink:0;font-weight:800;color:${x.rank <= 3 ? "var(--accent)" : "var(--ink-faint)"}">${x.rank}</span><div class="grow"><div class="name">${esc(x.name)} ${isoChip(x.countryIso)}</div><div class="meta">${pct(x.share)} of total${x.ownCurrency !== c ? ` · holds ${money(x.ownAmount, x.ownCurrency)}` : ""}</div>${x.hidden ? '<div style="margin-top:4px"><span class="pill quiet">hidden from the app\'s board</span></div>' : ""}</div><div class="amt">${money(x.amount, c)}</div></button>`).join("");
+    const lands = d.countries.map((x) => `<div class="row"><div class="grow"><div class="name">${isoChip(x.iso)} ${plural(x.holders, "holder")}</div><div class="meta">${pct(x.share)} of total${x.currency !== c ? ` · ${money(x.ownAmount, x.currency)} there` : ""}</div>${bar(x.share)}</div><div class="amt">${money(x.amount, c)}</div></div>`).join("");
+    const k = d.concentration;
+    return header("Liquidity", `Where members' balances sit · every country counted in ${esc(c)} at today's rates`) +
+      `<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${kpi("Total held by members", money(d.total, c), `${plural(d.holders, "member")} with a balance`)}${kpi("Largest holder", pct(k.top1), "of the total")}${kpi("Top 10 holders", pct(k.top10), "of the total")}${kpi("Hidden from the board", count(d.hiddenCount), d.hiddenCount ? `${money(d.hiddenAmount, c)} between them` : "nobody has hidden")}</div>` +
+      (d.unconverted ? `<div class="note">${plural(d.unconverted, "member")} left out: no exchange rate for their currency today.</div>` : "") +
+      `<div class="grid g2 tgrid"><div>${card("Largest balances", `top ${d.rows.length} of ${INT.format(d.members)}`, `<div class="rows">${rows || '<p class="muted" style="font-weight:600;margin:6px 0 0">No balances yet.</p>'}</div>`)}</div><div>${card("By country", "of the total", `<div class="rows">${lands || '<p class="muted" style="font-weight:600;margin:6px 0 0">None.</p>'}</div>`)}${card("How to read this", "", `<p class="muted" style="font-weight:600;margin:0;line-height:1.5">GLOOBAL balances only (not GLOOBAL Bank, Essentials or pools). ${plural(d.empty, "member")} hold nothing. A member who hid from the app's board is still counted and listed here; members never see each other's GLOOBAL ID there. Tap a row to open the account.</p>`)}</div></div>`;
+  }
   function viewRisk() {
     const d = S.riskD;
     if (!d) return loading("Risk", "Signals worth a look");
@@ -633,7 +657,7 @@
      by someone other than whoever wrote the change. */
   const G_LANGS = [["en", "English"], ["hi", "हिन्दी"], ["hl", "Hinglish"], ["ta", "தமிழ்"]];
   const G_LANG_NAME = Object.fromEntries(G_LANGS);
-  const G_TOPICS = { send: "Sending", receive: "Receiving", bank: "GLOOBAL Bank", essentials: "My Essentials", shop: "My shop", geu: "GEU", account: "Account", help: "Help" };
+  const G_TOPICS = { send: "Sending", receive: "Receiving", bank: "GLOOBAL Bank", essentials: "My Essentials", shop: "My shop", geu: "CEL", account: "Account", help: "Help" };
   const G_SCREENS = { send: "Send", bank: "GLOOBAL Bank", essentials: "My Essentials", shop: "My shop" };
   const G_TARGETS = { send: "Send", bank: "GLOOBAL Bank", essentials: "My Essentials", myshop: "My shop", history: "History", receive: "Receive", scan: "Scanner", complaints: "Complaints & reports", security: "Security", referral: "Referrals", notifications: "Notifications", help: "Chat with us" };
   const gq = (c) => (c && c.t && c.t.en ? c.t.en.q : "");
@@ -779,7 +803,7 @@
     if (S.welcome) { root.innerHTML = viewWelcome(); return; }
     let r = route();
     if (!allowed(r)) { r = ROLES[ROLE()].home; }
-    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase, system: viewSystem, growth: viewGrowth, shops: viewShops, risk: viewRisk, live: viewLive, alerts: viewAlerts, guide: viewGuide };
+    const live = { today: viewToday, audit: viewAudit, desk: viewDesk, ticket: viewTicket, team: viewTeam, lookup: viewLookup, account: viewAccount, countries: viewCountries, country: viewCountry, pair: viewPair, money: viewMoney, books: viewBooks, settlements: viewSettlements, rates: viewRates, problems: viewProblems, complaint: viewComplaint, tcase: viewCase, system: viewSystem, growth: viewGrowth, shops: viewShops, liquidity: viewLiquidity, risk: viewRisk, live: viewLive, alerts: viewAlerts, guide: viewGuide };
     const view = live[r] ? live[r]() : viewSoon(r);
     const navR = r === "ticket" ? "desk" : r === "account" ? "lookup" : ["country", "pair"].includes(r) ? "countries" : ["books", "settlements", "rates"].includes(r) ? "money" : ["complaint", "tcase"].includes(r) ? "problems" : r;
     const nav = roleNav(), tabsK = roleTabs();
@@ -897,6 +921,7 @@
   const loadSys = () => grab(() => window.AdminApi.system(), (r) => { S.sys = r; }, "system");
   const loadGrowth = () => grab(() => window.AdminApi.growth(), (r) => { S.grow = r; }, "growth");
   const loadShops = () => { const p = S.period; return grab(() => window.AdminApi.shops(p), (r) => { S.shopsD = r; }, "shops"); };
+  const loadLiquidity = () => { return grab(() => window.AdminApi.liquidity(), (r) => { S.liqD = r; }, "liquidity"); };
   const loadRisk = () => grab(() => window.AdminApi.risk(), (r) => { S.riskD = r; }, "risk");
   const loadAlerts = () => grab(() => window.AdminApi.alerts(), (r) => { S.alertsD = r; S.alertsDraft = null; }, "alerts");
   async function loadLive(more) {
@@ -939,6 +964,7 @@
     if (r === "system") loadSys();
     if (r === "growth") loadGrowth();
     if (r === "shops") loadShops();
+    if (r === "liquidity") loadLiquidity();
     if (r === "risk") loadRisk();
     if (r === "live") { S.liveD = null; loadLive(false); }
     if (r === "alerts") loadAlerts();
@@ -1117,7 +1143,7 @@
     if (t.matches("[data-more]")) { S.more = true; render(); return; }
     if (t.matches("[data-refresh]")) { loadToday(); toast("Refreshing"); return; }
     if (t.matches("[data-theme-toggle]")) { const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark"); return; }
-    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.sys = null; S.grow = null; S.shopsD = null; S.riskD = null; S.liveD = null; S.alertsD = null; S.alertsDraft = null; S.corr = null; S.problems = null; S.complaint = null; S.tcase = null; S.holds = null; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
+    if (t.matches("[data-signout]")) { window.AdminApi.logout(); window.AdminApi.clear(); S.more = false; S.today = null; S.audit = null; S.desk = null; S.ticket = null; S.team = null; S.viewAs = null; S.welcome = false; S.issued = null; S.account = null; S.found = null; S.q = ""; S.sys = null; S.grow = null; S.shopsD = null; S.liqD = null; S.riskD = null; S.liveD = null; S.alertsD = null; S.alertsDraft = null; S.corr = null; S.problems = null; S.complaint = null; S.tcase = null; S.holds = null; S.cdata = null; S.country = null; S.pairData = null; S.mdata = null; S.books = null; S.setl = null; S.rates = null; S.aside = null; S.alerts = "unknown"; S.stage = "door"; S.error = ""; render(); return; }
   });
   document.addEventListener("input", (e) => {
     if (e.target.id === "gid") { S.id = Array.from(e.target.value.replace(/\s/g, "")).filter((c) => SYMBOLS.includes(c)).slice(0, 12).join(""); S.focus = "gid"; render(); }

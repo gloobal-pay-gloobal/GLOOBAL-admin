@@ -86,6 +86,7 @@
     system: () => call("GET", "/api/admin/system"),
     growth: () => call("GET", `/api/admin/growth?tz=${encodeURIComponent(tz())}`),
     shops: (period) => call("GET", `/api/admin/shops?period=${encodeURIComponent(period)}&tz=${encodeURIComponent(tz())}`),
+    liquidity: () => call("GET", "/api/admin/liquidity"),
     risk: () => call("GET", "/api/admin/risk"),
     live: (after) => call("GET", `/api/admin/live${after ? `?after=${encodeURIComponent(after)}` : ""}`),
     alerts: () => call("GET", "/api/admin/alerts"),
